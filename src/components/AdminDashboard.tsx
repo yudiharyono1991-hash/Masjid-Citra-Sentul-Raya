@@ -213,7 +213,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
     textTarawih: 'Selamat menjalankan Ibadah Shalat Sunnah Tarawih berjamaah.',
     textJumat: 'Harap tenang, Khutbah Jumat sedang berlangsung.',
     textIdulFitri: 'Selamat Hari Raya Idul Fitri 1 Syawal. Mohon maaf lahir dan batin.',
-    textIdulAdha: 'Selamat Hari Raya Idul Adha. Mari berkurban untuk meraih takwa.'
+    textIdulAdha: 'Selamat Hari Raya Idul Adha. Mari berkurban untuk meraih takwa.',
+    city: 'Bogor',
+    country: 'Indonesia'
   });
 
   const [adminHeroSlides, setAdminHeroSlides] = useState<HeroSlide[]>(DEFAULT_HERO_SLIDES);
