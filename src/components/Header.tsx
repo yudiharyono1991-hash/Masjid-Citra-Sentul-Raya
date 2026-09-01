@@ -14,6 +14,9 @@ interface HeaderProps {
   isAutoNight?: boolean;
   isLoggedIn?: boolean;
   loggedInText?: string;
+  isPortalActive?: boolean;
+  showTransparansi?: boolean;
+  onTransparansiClick?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({ 
@@ -26,7 +29,10 @@ export const Header: React.FC<HeaderProps> = ({
   onToggleDarkMode,
   isAutoNight = false,
   isLoggedIn = false,
-  loggedInText = 'Portal'
+  loggedInText = 'Portal',
+  isPortalActive = false,
+  showTransparansi = false,
+  onTransparansiClick
 }) => {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [activeSection, setActiveSection] = useState('home');
@@ -75,6 +81,7 @@ export const Header: React.FC<HeaderProps> = ({
     { name: 'Home', id: 'home' },
     { name: 'Kalender Kegiatan', id: 'kalender' },
     { name: 'ZISWAF', id: 'ziswaf' },
+    ...(showTransparansi ? [{ name: 'Transparansi', id: 'transparansi' }] : []),
     { name: 'Tentang Kami', id: 'tentang' },
     { name: 'Kontak Kami', id: 'kontak' },
   ];
@@ -89,6 +96,8 @@ export const Header: React.FC<HeaderProps> = ({
         window.scrollTo({ top: 0, behavior: 'smooth' });
       } else if (id === 'quran' && onQuranClick) {
         onQuranClick();
+      } else if (id === 'transparansi' && onTransparansiClick) {
+        onTransparansiClick();
       } else {
         const el = document.getElementById(id);
         if (el) el.scrollIntoView({ behavior: 'smooth' });
@@ -157,7 +166,7 @@ export const Header: React.FC<HeaderProps> = ({
                 key={item.id}
                 onClick={() => handleScroll(item.id)}
                 className={`px-3 py-2 text-xs sm:text-sm font-semibold rounded-xl transition-all cursor-pointer ${
-                  activeSection === item.id
+                  (!isPortalActive && activeSection === item.id)
                     ? isDarkMode 
                       ? 'text-emerald-400 bg-slate-800' 
                       : 'text-green-600 bg-green-100'

@@ -44,6 +44,9 @@ interface AdminDashboardProps {
     showZiswaf: boolean;
     showQuran: boolean;
     showTentang: boolean;
+    showTransparansiPublik?: boolean;
+    showTransparansiKas?: boolean;
+    showTransparansiZiswaf?: boolean;
   };
   setHomeVisibility: React.Dispatch<React.SetStateAction<any>>;
   registeredJamaahList: any[];
@@ -2984,16 +2987,32 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {[
-                      { key: 'showJadwal', label: 'Modul Jadwal Shalat' },
-                      { key: 'showKalender', label: 'Modul Kalender Kegiatan' },
-                      { key: 'showZiswaf', label: 'Modul Program ZISWAF' },
-                      { key: 'showQuran', label: 'Banner Al-Quran Digital' },
-                      { key: 'showTentang', label: 'Modul Profil & Sejarah Masjid' },
+                      { key: 'showJadwal', label: 'Modul Jadwal Shalat', id: 'show_jadwal' },
+                      { key: 'showKalender', label: 'Modul Kalender Kegiatan', id: 'show_kalender' },
+                      { key: 'showZiswaf', label: 'Modul Program ZISWAF', id: 'show_ziswaf' },
+                      { key: 'showQuran', label: 'Banner Al-Quran Digital', id: 'show_quran' },
+                      { key: 'showTentang', label: 'Modul Profil & Sejarah Masjid', id: 'show_tentang' },
+                      { key: 'showTransparansiPublik', label: 'Tombol Laporan Transparansi (Header)', id: 'show_transparansi_publik' },
+                      { key: 'showTransparansiKas', label: 'Tab Laporan Kas & Operasional', id: 'show_transparansi_kas' },
+                      { key: 'showTransparansiZiswaf', label: 'Tab Laporan Dana ZISWAF', id: 'show_transparansi_ziswaf' },
                     ].map((item) => (
                       <div key={item.key} className="flex items-center justify-between p-5 bg-slate-50 border border-slate-200 rounded-xl">
                         <h3 className="font-bold text-slate-800">{item.label}</h3>
                         <label className="relative inline-flex items-center cursor-pointer shrink-0">
-                          <input type="checkbox" className="sr-only peer" checked={homeVisibility[item.key as keyof typeof homeVisibility]} onChange={() => setHomeVisibility(prev => ({ ...prev, [item.key]: !prev[item.key as keyof typeof homeVisibility] }))} />
+                          <input 
+                            type="checkbox" 
+                            className="sr-only peer" 
+                            checked={homeVisibility[item.key as keyof typeof homeVisibility]} 
+                            onChange={async () => {
+                              const newVal = !homeVisibility[item.key as keyof typeof homeVisibility];
+                              setHomeVisibility(prev => ({ ...prev, [item.key]: newVal }));
+                              try {
+                                await supabase.from('app_settings').update({ [item.id]: newVal }).eq('id', appSettings?.id);
+                              } catch (err) {
+                                console.error('Failed to update settings', err);
+                              }
+                            }} 
+                          />
                           <div className="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-lime-500"></div>
                         </label>
                       </div>

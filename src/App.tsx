@@ -12,6 +12,7 @@ import { Footer } from './components/Footer';
 import { AdminDashboard } from './components/AdminDashboard';
 import { JamaahDashboard } from './components/JamaahDashboard';
 import { LoginModal } from './components/LoginModal';
+import { ModulTransparansiPublik } from './components/ModulTransparansiPublik';
 import { supabase } from './lib/supabase';
 import { Sun, Moon, BookOpen, LayoutDashboard } from 'lucide-react';
 
@@ -35,6 +36,7 @@ export default function App() {
   const [namaJamaah, setNamaJamaah] = useState(() => localStorage.getItem('masjid_user_name') || 'Hamba Allah');
   const [kontakJamaah, setKontakJamaah] = useState(() => localStorage.getItem('masjid_user_phone') || '');
   const [showGlobalPanduanModal, setShowGlobalPanduanModal] = useState(false);
+  const [showTransparansiModal, setShowTransparansiModal] = useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
   const [isQuranModalOpen, setIsQuranModalOpen] = useState(false);
@@ -303,7 +305,12 @@ export default function App() {
     showZiswaf: true,
     showQuran: true,
     showTentang: true,
+    showTransparansiPublik: false,
+    showTransparansiKas: true,
+    showTransparansiZiswaf: true
   });
+
+  const [appSettings, setAppSettings] = useState<any>(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -311,12 +318,16 @@ export default function App() {
         // 0. Fetch App Settings for Visibility Toggles
         const { data: settingsData, error: settingsErr } = await supabase.from('app_settings').select('*').maybeSingle();
         if (!settingsErr && settingsData) {
+          setAppSettings(settingsData);
           setHomeVisibility({
             showJadwal: settingsData.show_jadwal ?? true,
             showKalender: settingsData.show_kalender ?? true,
             showZiswaf: settingsData.show_ziswaf ?? true,
             showQuran: settingsData.show_quran ?? true,
             showTentang: settingsData.show_tentang ?? true,
+            showTransparansiPublik: settingsData.show_transparansi_publik ?? false,
+            showTransparansiKas: settingsData.show_transparansi_kas ?? true,
+            showTransparansiZiswaf: settingsData.show_transparansi_ziswaf ?? true
           });
         }
 
@@ -504,6 +515,9 @@ export default function App() {
         isAutoNight={isAutoNight}
         isLoggedIn={isAdmin || isJamaahLoggedIn}
         loggedInText={isAdmin ? 'Portal Admin' : 'Portal Jamaah'}
+        isPortalActive={showPortal}
+        showTransparansi={homeVisibility.showTransparansiPublik}
+        onTransparansiClick={() => setShowTransparansiModal(true)}
       />
       
       <main className="flex-1 flex flex-col">
@@ -662,6 +676,15 @@ export default function App() {
           logAudit(jamaah.n, 'JAMAAH_BARU', jamaah.c || jamaah.e, 'REGISTER', 'Registrasi jamaah baru berhasil dilakukan', 'bg-blue-900/50 text-blue-600');
         }}
       />
+      {showTransparansiModal && (
+        <ModulTransparansiPublik 
+          onClose={() => setShowTransparansiModal(false)} 
+          appSettings={{
+            show_transparansi_kas: homeVisibility.showTransparansiKas,
+            show_transparansi_ziswaf: homeVisibility.showTransparansiZiswaf
+          }} 
+        />
+      )}
       <Suspense fallback={null}>
         <AiAsistenModal 
           isOpen={isAiModalOpen} 
