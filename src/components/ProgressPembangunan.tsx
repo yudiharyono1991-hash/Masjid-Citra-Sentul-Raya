@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { supabase } from '../lib/supabase';
+import { MilestonePembangunan } from '../types';
 import {
   CheckCircle2,
   Clock,
@@ -10,13 +12,37 @@ import {
   ChevronRight,
   ImageIcon,
 } from 'lucide-react';
-import { MILESTONES_PEMBANGUNAN } from '../data/mockData';
-import { MilestonePembangunan } from '../types';
 
 export const ProgressPembangunan: React.FC = () => {
-  const [selectedMilestone, setSelectedMilestone] = useState<MilestonePembangunan>(
-    MILESTONES_PEMBANGUNAN[2] // Default Stage 3 (Struktur Utama)
-  );
+  const [milestones, setMilestones] = useState<MilestonePembangunan[]>([]);
+  const [selectedMilestone, setSelectedMilestone] = useState<MilestonePembangunan | null>(null);
+
+  useEffect(() => {
+    const fetchMilestones = async () => {
+      const { data, error } = await supabase
+        .from('milestones_pembangunan')
+        .select('*')
+        .order('urutan', { ascending: true });
+        
+      if (!error && data) {
+        const formatted = data.map(d => ({
+          id: d.id,
+          judul: d.judul,
+          deskripsi: d.deskripsi,
+          persentase: d.persentase,
+          status: d.status,
+          targetSelesai: d.target_selesai,
+          fotoUrl: d.foto_url,
+          rincianPekerjaan: d.rincian_pekerjaan || []
+        }));
+        setMilestones(formatted);
+        setSelectedMilestone(formatted[2] || formatted[0]);
+      }
+    };
+    fetchMilestones();
+  }, []);
+
+  if (!selectedMilestone) return null;
 
   return (
     <div id="progress" className="py-12 bg-slate-50/70 border-y border-emerald-100">
@@ -37,7 +63,7 @@ export const ProgressPembangunan: React.FC = () => {
 
         {/* Milestone Steps Timeline Grid */}
         <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
-          {MILESTONES_PEMBANGUNAN.map((m, idx) => {
+          {milestones.map((m, idx) => {
             const isSelected = selectedMilestone.id === m.id;
             const isFinished = m.status === 'Selesai';
             const isInProgress = m.status === 'Sedang Berjalan';
@@ -69,7 +95,7 @@ export const ProgressPembangunan: React.FC = () => {
                     </span>
 
                     <span
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                      className={`text-xs font-bold px-2 py-0.5 rounded-full ${
                         isFinished
                           ? isSelected ? 'bg-emerald-800 text-lime-300' : 'bg-emerald-100 text-emerald-800'
                           : isInProgress
@@ -142,7 +168,7 @@ export const ProgressPembangunan: React.FC = () => {
               </div>
               <div className="text-right">
                 <span className="text-3xl font-black text-emerald-800">{selectedMilestone.persentase}%</span>
-                <span className="text-[10px] text-slate-500 block">Selesai</span>
+                <span className="text-xs text-slate-500 block">Selesai</span>
               </div>
             </div>
 

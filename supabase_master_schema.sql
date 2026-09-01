@@ -463,18 +463,3 @@ WHERE
 GROUP BY 
     coa.kode, coa.nama, coa.kategori, coa.kelompok, coa.is_debit;
 
--- --------------------------------------------------------------------
--- 19. TABLE: registered_jamaah (Data Akun Jamaah Terdaftar)
--- --------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS public.registered_jamaah (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    nama VARCHAR(255) NOT NULL,
-    kontak VARCHAR(100) UNIQUE NOT NULL,
-    password VARCHAR(255) NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- RLS
-ALTER TABLE public.registered_jamaah ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "Public Access Jamaah" ON public.registered_jamaah;
-CREATE POLICY "Public Access Jamaah" ON public.registered_jamaah FOR ALL USING (true);

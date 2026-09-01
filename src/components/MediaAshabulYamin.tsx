@@ -1,10 +1,33 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Youtube, Play, ExternalLink, Radio, Tv, Sparkles } from 'lucide-react';
-import { VIDEOS_DAKWAH } from '../data/mockData';
+import { supabase } from '../lib/supabase';
 import { VideoDakwah } from '../types';
 
 export const MediaAshabulYamin: React.FC = () => {
-  const [activeVideo, setActiveVideo] = useState<VideoDakwah>(VIDEOS_DAKWAH[0]);
+  const [videos, setVideos] = useState<VideoDakwah[]>([]);
+  const [activeVideo, setActiveVideo] = useState<VideoDakwah | null>(null);
+
+  useEffect(() => {
+    const fetchVideos = async () => {
+      const { data, error } = await supabase.from('video_dakwah').select('*').order('tanggal', { ascending: false });
+      if (!error && data && data.length > 0) {
+        const formatted = data.map(d => ({
+          id: d.id,
+          youtubeId: d.youtube_id,
+          judul: d.judul,
+          penceramah: d.penceramah,
+          durasi: d.durasi,
+          kategori: d.kategori,
+          tanggal: d.tanggal
+        }));
+        setVideos(formatted);
+        setActiveVideo(formatted[0]);
+      }
+    };
+    fetchVideos();
+  }, []);
+
+  if (!activeVideo) return null;
 
   return (
     <div id="media" className="py-12 bg-slate-900 text-white border-y border-slate-800">
@@ -52,7 +75,7 @@ export const MediaAshabulYamin: React.FC = () => {
 
             <div className="bg-slate-800/80 p-5 rounded-2xl border border-slate-700 space-y-2">
               <div className="flex items-center gap-2 text-xs text-lime-400 font-semibold">
-                <span className="bg-red-900/80 text-red-300 px-2.5 py-0.5 rounded-full text-[10px] font-bold">
+                <span className="bg-red-900/80 text-red-300 px-2.5 py-0.5 rounded-full text-xs font-bold">
                   {activeVideo.kategori}
                 </span>
                 <span>Durasi: {activeVideo.durasi}</span>
@@ -75,7 +98,7 @@ export const MediaAshabulYamin: React.FC = () => {
             </h3>
 
             <div className="space-y-2.5">
-              {VIDEOS_DAKWAH.map((v) => {
+              {videos.map((v) => {
                 const isActive = activeVideo.id === v.id;
                 return (
                   <button
@@ -92,13 +115,13 @@ export const MediaAshabulYamin: React.FC = () => {
                     </div>
 
                     <div className="space-y-1">
-                      <span className="text-[10px] font-bold text-lime-400 block uppercase">
+                      <span className="text-xs font-bold text-lime-400 block uppercase">
                         {v.kategori}
                       </span>
                       <h4 className="text-xs font-bold text-white line-clamp-2 leading-snug">
                         {v.judul}
                       </h4>
-                      <span className="text-[10px] text-slate-400 block">
+                      <span className="text-xs text-slate-400 block">
                         {v.durasi} • {v.tanggal}
                       </span>
                     </div>

@@ -1,8 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { Header } from './components/Header';
 import { Hero } from './components/Hero';
 import { DaftarProgram } from './components/DaftarProgram';
-import { AlQuranDigital } from './components/AlQuranDigital';
 import { JadwalShalatCard } from './components/JadwalShalatCard';
 import { KalenderKegiatan } from './components/KalenderKegiatan';
 import { MediaSosial } from './components/MediaSosial';
@@ -12,19 +11,28 @@ import { Footer } from './components/Footer';
 import { AdminDashboard } from './components/AdminDashboard';
 import { JamaahDashboard } from './components/JamaahDashboard';
 import { LoginModal } from './components/LoginModal';
-import { AiAsistenModal } from './components/AiAsistenModal';
-import { BukuPanduanModal } from './components/BukuPanduanModal';
-import { INITIAL_STATS } from './data/mockData';
 import { supabase } from './lib/supabase';
 import { Sun, Moon, BookOpen, LayoutDashboard } from 'lucide-react';
 
+const AiAsistenModal = lazy(() => import('./components/AiAsistenModal').then(module => ({ default: module.AiAsistenModal })));
+const BukuPanduanModal = lazy(() => import('./components/BukuPanduanModal').then(module => ({ default: module.BukuPanduanModal })));
+const AlQuranDigital = lazy(() => import('./components/AlQuranDigital').then(module => ({ default: module.AlQuranDigital })));
+
+
 export default function App() {
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [adminRole, setAdminRole] = useState('direktur');
-  const [isJamaahLoggedIn, setIsJamaahLoggedIn] = useState(false);
-  const [showPortal, setShowPortal] = useState(false);
-  const [namaJamaah, setNamaJamaah] = useState('Hamba Allah');
-  const [kontakJamaah, setKontakJamaah] = useState('');
+  const [isAdmin, setIsAdmin] = useState(() => localStorage.getItem('isAdmin') === 'true');
+  const [adminRole, setAdminRole] = useState(() => localStorage.getItem('adminRole') || 'direktur');
+  const [isJamaahLoggedIn, setIsJamaahLoggedIn] = useState(() => localStorage.getItem('isJamaahLoggedIn') === 'true');
+  const [showPortal, setShowPortal] = useState(() => localStorage.getItem('showPortal') === 'true');
+
+  useEffect(() => {
+    localStorage.setItem('isAdmin', String(isAdmin));
+    localStorage.setItem('adminRole', adminRole);
+    localStorage.setItem('isJamaahLoggedIn', String(isJamaahLoggedIn));
+    localStorage.setItem('showPortal', String(showPortal));
+  }, [isAdmin, adminRole, isJamaahLoggedIn, showPortal]);
+  const [namaJamaah, setNamaJamaah] = useState(() => localStorage.getItem('masjid_user_name') || 'Hamba Allah');
+  const [kontakJamaah, setKontakJamaah] = useState(() => localStorage.getItem('masjid_user_phone') || '');
   const [showGlobalPanduanModal, setShowGlobalPanduanModal] = useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
@@ -104,60 +112,14 @@ export default function App() {
     localStorage.setItem('theme', nextMode ? 'dark' : 'light');
   };
   
-  const defaultPrograms = [
-    {
-      id: 1,
-      kategori: 'infaq',
-      judul: 'Pembangunan Masjid Citra Sentul Raya',
-      deskripsi: 'Wakaf pembangunan masjid. Amal Jariyah Tak Terputus.',
-      terkumpulPersen: 0,
-      terkumpulRp: 0,
-      targetRp: 1500000000,
-      donatur: 0,
-      gambar: 'https://images.unsplash.com/photo-1564769625905-50e93615e769?auto=format&fit=crop&w=800&q=80'
-    },
-    {
-      id: 2,
-      kategori: 'sedekah',
-      judul: 'Santunan Yatim Piatu',
-      deskripsi: 'Berbagi Kasih Bersama Anak Yatim.',
-      terkumpulPersen: 0,
-      terkumpulRp: 0,
-      targetRp: 250000000,
-      donatur: 0,
-      gambar: 'https://images.unsplash.com/photo-1488521787991-ed7bbaae773c?auto=format&fit=crop&w=800&q=80'
-    },
-    {
-      id: 3,
-      kategori: 'zakat',
-      judul: 'Santunan Dhuafa (& Fakir Miskin)',
-      deskripsi: 'Meringankan Beban Saudara Kita.',
-      terkumpulPersen: 0,
-      terkumpulRp: 0,
-      targetRp: 750000000,
-      donatur: 0,
-      gambar: 'https://images.unsplash.com/photo-1593113598332-cd288d649433?auto=format&fit=crop&w=800&q=80'
-    }
-  ];
-
   // State for ZISWAF Programs
-  const [programs, setPrograms] = useState(defaultPrograms);
+  const [programs, setPrograms] = useState<any[]>([]);
   
   // State for Donasi History (Pending and Verified)
-  const [donasiHistory, setDonasiHistory] = useState<any[]>([
-    {
-      id: 'INV-' + Math.floor(Math.random() * 10000),
-      tanggal: new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }),
-      programId: 2,
-      programName: 'Santunan Yatim Piatu',
-      nominal: 150000,
-      metode: 'Bank Transfer (BSI)',
-      status: 'Berhasil',
-      bukti: null,
-      namaDonatur: 'Hamba Allah',
-      kontakDonatur: '0812xxxx'
-    }
-  ]);
+  const [donasiHistory, setDonasiHistory] = useState<any[]>([]);
+  
+  // Global Error State
+  const [errorLoad, setErrorLoad] = useState<string | null>(null);
 
   const handleDonateSubmit = async (programId: number, nominal: number, metode: string, bukti: File | string | null, namaDonatur: string, kontakDonatur: string) => {
     const program = programs.find(p => p.id === programId);
@@ -217,6 +179,20 @@ export default function App() {
         nama_donatur: namaDonatur || 'Hamba Allah',
         kontak_donatur: kontakDonatur || '-'
       }]);
+
+      // Add notifications to localStorage (no Supabase dependency)
+      const addLocalNotification = (role: string, title: string, message: string) => {
+        try {
+          const stored = localStorage.getItem('admin_notifications');
+          const existing = stored ? JSON.parse(stored) : [];
+          const newNotif = { id: `notif-${Date.now()}-${role}`, user_role: role, title, message, is_read: false, created_at: new Date().toISOString() };
+          const updated = [newNotif, ...existing].slice(0, 50);
+          localStorage.setItem('admin_notifications', JSON.stringify(updated));
+          window.dispatchEvent(new Event('storage'));
+        } catch {}
+      };
+      addLocalNotification('bendahara', 'Donasi Baru (Menunggu Verifikasi)', `Terdapat donasi baru dari ${namaDonatur || 'Hamba Allah'} sebesar Rp ${nominal.toLocaleString('id-ID')} untuk program ${program.judul}.`);
+      addLocalNotification('direktur', 'Donasi Baru Masuk', `Terdapat donasi baru dari ${namaDonatur || 'Hamba Allah'} sebesar Rp ${nominal.toLocaleString('id-ID')}.`);
     } catch (err) {
       console.error('Failed to insert donation to Supabase', err);
     }
@@ -327,6 +303,18 @@ export default function App() {
   useEffect(() => {
     const fetchData = async () => {
       try {
+        // 0. Fetch App Settings for Visibility Toggles
+        const { data: settingsData, error: settingsErr } = await supabase.from('app_settings').select('*').eq('id', 1).maybeSingle();
+        if (!settingsErr && settingsData) {
+          setHomeVisibility({
+            showJadwal: settingsData.show_jadwal ?? true,
+            showKalender: settingsData.show_kalender ?? true,
+            showZiswaf: settingsData.show_ziswaf ?? true,
+            showQuran: settingsData.show_quran ?? true,
+            showTentang: settingsData.show_tentang ?? true,
+          });
+        }
+
         // 1. Fetch Donations First to calculate exact live balances
         const { data: donasiData, error: donasiErr } = await supabase.from('donations').select('*').order('created_at', { ascending: false });
         let formattedDonasi: any[] = [];
@@ -406,8 +394,12 @@ export default function App() {
           }));
           setAuditLogs(formattedAudit);
         }
-      } catch (err) {
+        
+        // Remove error state on success
+        setErrorLoad(null);
+      } catch (err: any) {
         console.error('Error fetching data from Supabase:', err);
+        setErrorLoad('Gagal memuat data dari server. Mohon periksa koneksi internet Anda.');
       } finally {
         setLoading(false);
       }
@@ -456,12 +448,31 @@ export default function App() {
     }
   };
 
+  if (loading) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-[#F7FBF4] dark:bg-slate-950 transition-colors duration-300">
+        <div className="w-16 h-16 border-4 border-lime-200 border-t-lime-600 rounded-full animate-spin shadow-lg"></div>
+        <p className="mt-6 text-lime-800 dark:text-lime-400 font-bold tracking-widest uppercase text-sm animate-pulse">Menghubungkan ke Server...</p>
+      </div>
+    );
+  }
+
   return (
     <div className={`min-h-screen font-sans transition-colors duration-300 relative flex flex-col ${
       isDarkMode 
         ? 'dark bg-slate-950 text-slate-100 selection:bg-green-400 selection:text-white' 
         : 'bg-[#F7FBF4] text-[#1A1A1A] selection:bg-green-400 selection:text-white'
     }`}>
+      
+      {errorLoad && (
+        <div className="bg-red-500/90 backdrop-blur-sm text-white px-4 py-2 text-center text-sm font-medium z-[100] sticky top-0 flex items-center justify-center gap-4">
+          <span>{errorLoad}</span>
+          <button onClick={() => window.location.reload()} className="px-3 py-1 bg-white text-red-600 rounded-md hover:bg-red-50 transition-colors shadow-sm font-bold">
+            Muat Ulang
+          </button>
+        </div>
+      )}
+
       {/* Navigation Header Always Visible */}
       <Header 
         onLoginClick={() => {
@@ -574,13 +585,15 @@ export default function App() {
         {homeVisibility.showKalender && <KalenderKegiatan />}
 
         {/* ZISWAF Programs */}
-        {homeVisibility.showZiswaf && <DaftarProgram programs={programs} onDonate={handleDonateSubmit} />}
+        {homeVisibility.showZiswaf && <DaftarProgram programs={programs} onDonate={handleDonateSubmit} loggedInName={isJamaahLoggedIn ? namaJamaah : ''} loggedInContact={isJamaahLoggedIn ? kontakJamaah : ''} />}
 
         {/* Al-Quran Digital - Modal Reader */}
-        <AlQuranDigital 
-          isOpenModal={isQuranModalOpen} 
-          onCloseModal={() => setIsQuranModalOpen(false)} 
-        />
+        <Suspense fallback={null}>
+          <AlQuranDigital 
+            isOpenModal={isQuranModalOpen} 
+            onCloseModal={() => setIsQuranModalOpen(false)} 
+          />
+        </Suspense>
 
         {/* Tentang Kami */}
         {homeVisibility.showTentang && (
@@ -639,19 +652,21 @@ export default function App() {
           logAudit(jamaah.n, 'JAMAAH_BARU', jamaah.c || jamaah.e, 'REGISTER', 'Registrasi jamaah baru berhasil dilakukan', 'bg-blue-900/50 text-blue-600');
         }}
       />
-      <AiAsistenModal 
-        isOpen={isAiModalOpen} 
-        onClose={() => setIsAiModalOpen(false)} 
-        onOpenWakaf={() => {
-          setIsAiModalOpen(false);
-          document.getElementById('ziswaf')?.scrollIntoView({ behavior: 'smooth' });
-        }}
-      />
-      <BukuPanduanModal
-        isOpen={showGlobalPanduanModal}
-        onClose={() => setShowGlobalPanduanModal(false)}
-        defaultRole={isAdmin ? 'admin' : 'jamaah'}
-      />
+      <Suspense fallback={null}>
+        <AiAsistenModal 
+          isOpen={isAiModalOpen} 
+          onClose={() => setIsAiModalOpen(false)} 
+          onOpenWakaf={() => {
+            setIsAiModalOpen(false);
+            document.getElementById('ziswaf')?.scrollIntoView({ behavior: 'smooth' });
+          }}
+        />
+        <BukuPanduanModal
+          isOpen={showGlobalPanduanModal}
+          onClose={() => setShowGlobalPanduanModal(false)}
+          defaultRole={isAdmin ? 'admin' : 'jamaah'}
+        />
+      </Suspense>
     </div>
   );
 }

@@ -58,7 +58,7 @@ export const LokasiKontak: React.FC = () => {
               📱
             </div>
             <div>
-              <span className="text-[10px] text-lime-700 font-extrabold uppercase block">
+              <span className="text-xs text-lime-700 font-extrabold uppercase block">
                 Panitia Konfirmasi Donasi
               </span>
               <h3 className="text-xl font-bold text-slate-900">Pak Leo</h3>
@@ -83,7 +83,7 @@ export const LokasiKontak: React.FC = () => {
               🕌
             </div>
             <div>
-              <span className="text-[10px] text-lime-700 font-extrabold uppercase block">
+              <span className="text-xs text-lime-700 font-extrabold uppercase block">
                 Sekretariat Pembangunan
               </span>
               <h3 className="text-xl font-bold text-slate-900">Kawasan Citra Sentul Raya</h3>

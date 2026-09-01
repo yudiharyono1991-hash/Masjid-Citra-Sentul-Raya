@@ -5,7 +5,7 @@ import { AlQuranDigital, BookmarkData } from './AlQuranDigital';
 import { BukuPanduanModal } from './BukuPanduanModal';
 import { triggerWaApp, sendWaViaGateway, generateWaReminderMessage, formatWaPhone, triggerDeviceNotification, requestDeviceNotificationPermission } from '../utils/whatsappReminder';
 import { supabase } from '../lib/supabase';
-
+import { getPrayerTimesSentul, getNextPrayerInfo } from '../utils/prayerTimes';
 interface JamaahDashboardProps {
   onBack: () => void;
   nama: string;
@@ -21,6 +21,15 @@ export const JamaahDashboard: React.FC<JamaahDashboardProps> = ({ onBack, nama, 
   const [showKalkulator, setShowKalkulator] = useState(false);
   const [showPanduanModal, setShowPanduanModal] = useState(false);
   const [profilePic, setProfilePic] = useState<string>('https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=300&q=80');
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const jadwalShalat = getPrayerTimesSentul();
+  const nextPrayer = getNextPrayerInfo(jadwalShalat);
 
   // Load profile from localStorage if present
   const [profilName, setProfilName] = useState<string>(nama || 'Hamba Allah');
@@ -140,6 +149,14 @@ export const JamaahDashboard: React.FC<JamaahDashboardProps> = ({ onBack, nama, 
         penjawab_dkm: null,
         tanggal_jawaban: null
       }]);
+
+      await supabase.from('notifications').insert([{
+        user_role: 'admin',
+        title: `Pesan/Tanya Baru: ${newItem.kategori}`,
+        message: `Dari ${newItem.namaPenanya}: ${newItem.judul}`,
+        is_read: false
+      }]);
+
     } catch (err) {
       console.error('Failed to insert aspirasi to Supabase', err);
     }
@@ -412,10 +429,10 @@ export const JamaahDashboard: React.FC<JamaahDashboardProps> = ({ onBack, nama, 
           
           <div className="flex-1 text-center md:text-left z-10 w-full">
             <div className="flex flex-wrap justify-center md:justify-start gap-2 mb-2">
-              <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+              <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 text-xs font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider">
                 Anggota Terverifikasi
               </span>
-              <span className="bg-amber-400/20 text-amber-300 border border-amber-400/30 text-[10px] font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1 uppercase tracking-wider">
+              <span className="bg-amber-400/20 text-amber-300 border border-amber-400/30 text-xs font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1 uppercase tracking-wider">
                 <Award className="w-3 h-3" /> Muhsinin Aktif
               </span>
             </div>
@@ -487,7 +504,7 @@ export const JamaahDashboard: React.FC<JamaahDashboardProps> = ({ onBack, nama, 
               {/* Dropdown Options */}
               {openDropdown === 'utama' && (
                 <div className="absolute left-0 top-full mt-2 w-56 bg-white rounded-2xl shadow-xl border border-slate-200 py-2 z-50 animate-in fade-in zoom-in-95 duration-150">
-                  <p className="px-3 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 mb-1">Pilihan Menu Utama</p>
+                  <p className="px-3 py-1.5 text-xs font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 mb-1">Pilihan Menu Utama</p>
                   <button
                     onClick={() => { setActiveTab('ringkasan'); setOpenDropdown(null); }}
                     className={`w-full px-3.5 py-2.5 text-left text-xs font-semibold flex items-center gap-2.5 hover:bg-emerald-50 transition-colors cursor-pointer ${
@@ -536,7 +553,7 @@ export const JamaahDashboard: React.FC<JamaahDashboardProps> = ({ onBack, nama, 
               {/* Dropdown Options */}
               {openDropdown === 'layanan' && (
                 <div className="absolute left-0 top-full mt-2 w-56 bg-white rounded-2xl shadow-xl border border-slate-200 py-2 z-50 animate-in fade-in zoom-in-95 duration-150">
-                  <p className="px-3 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 mb-1">Pilihan Layanan</p>
+                  <p className="px-3 py-1.5 text-xs font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 mb-1">Pilihan Layanan</p>
                   <button
                     onClick={() => { setActiveTab('tanya'); setOpenDropdown(null); }}
                     className={`w-full px-3.5 py-2.5 text-left text-xs font-semibold flex items-center gap-2.5 hover:bg-emerald-50 transition-colors cursor-pointer ${
@@ -569,7 +586,7 @@ export const JamaahDashboard: React.FC<JamaahDashboardProps> = ({ onBack, nama, 
               {/* Dropdown Options */}
               {openDropdown === 'keuangan' && (
                 <div className="absolute left-0 top-full mt-2 w-60 bg-white rounded-2xl shadow-xl border border-slate-200 py-2 z-50 animate-in fade-in zoom-in-95 duration-150">
-                  <p className="px-3 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 mb-1">Pilihan Menu Keuangan</p>
+                  <p className="px-3 py-1.5 text-xs font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 mb-1">Pilihan Menu Keuangan</p>
                   <button
                     onClick={() => { setActiveTab('donasi'); setOpenDropdown(null); }}
                     className={`w-full px-3.5 py-2.5 text-left text-xs font-semibold flex items-center gap-2.5 hover:bg-emerald-50 transition-colors cursor-pointer ${
@@ -618,7 +635,7 @@ export const JamaahDashboard: React.FC<JamaahDashboardProps> = ({ onBack, nama, 
               {/* Dropdown Options */}
               {openDropdown === 'akun' && (
                 <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-2xl shadow-xl border border-slate-200 py-2 z-50 animate-in fade-in zoom-in-95 duration-150">
-                  <p className="px-3 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 mb-1">Pilihan Menu Akun</p>
+                  <p className="px-3 py-1.5 text-xs font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 mb-1">Pilihan Menu Akun</p>
                   <button
                     onClick={() => { setActiveTab('profil'); setOpenDropdown(null); }}
                     className={`w-full px-3.5 py-2.5 text-left text-xs font-semibold flex items-center gap-2.5 hover:bg-emerald-50 transition-colors cursor-pointer ${
@@ -638,7 +655,7 @@ export const JamaahDashboard: React.FC<JamaahDashboardProps> = ({ onBack, nama, 
             <span className="text-[11px] text-slate-600 font-medium flex items-center gap-1.5">
               Tampilan Aktif: <strong className="text-emerald-800 font-bold">{getTabLabel(activeTab)}</strong>
             </span>
-            <span className="text-[10px] bg-emerald-100 text-emerald-800 font-extrabold px-2.5 py-0.5 rounded-full uppercase">
+            <span className="text-xs bg-emerald-100 text-emerald-800 font-extrabold px-2.5 py-0.5 rounded-full uppercase">
               {activeTab === 'ringkasan' || activeTab === 'quran' || activeTab === 'jadwal' ? 'Kelompok: UTAMA' :
                activeTab === 'tanya' ? 'Kelompok: LAYANAN' :
                activeTab === 'donasi' || activeTab === 'laporan' || activeTab === 'histori' ? 'Kelompok: KEUANGAN' : 'Kelompok: AKUN'}
@@ -730,27 +747,34 @@ export const JamaahDashboard: React.FC<JamaahDashboardProps> = ({ onBack, nama, 
               </div>
               
               <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                <div className="bg-emerald-700 rounded-2xl p-4 text-center text-white shadow-md flex flex-col justify-center">
-                  <p className="text-[10px] font-bold uppercase tracking-wider mb-1 opacity-90">Subuh</p>
-                  <p className="text-xl md:text-2xl font-bold">04:35</p>
-                  <span className="text-[9px] bg-emerald-800 text-emerald-200 py-0.5 px-2 rounded-full mt-1.5 font-semibold">Berikutnya</span>
-                </div>
-                <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 text-center text-slate-700 flex flex-col justify-center hover:bg-slate-100/80 transition-colors">
-                  <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Dzuhur</p>
-                  <p className="text-xl md:text-2xl font-bold text-slate-800">11:58</p>
-                </div>
-                <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 text-center text-slate-700 flex flex-col justify-center hover:bg-slate-100/80 transition-colors">
-                  <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Ashar</p>
-                  <p className="text-xl md:text-2xl font-bold text-slate-800">15:15</p>
-                </div>
-                <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 text-center text-slate-700 flex flex-col justify-center hover:bg-slate-100/80 transition-colors">
-                  <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Maghrib</p>
-                  <p className="text-xl md:text-2xl font-bold text-slate-800">17:55</p>
-                </div>
-                <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 text-center text-slate-700 flex flex-col justify-center hover:bg-slate-100/80 transition-colors">
-                  <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Isya</p>
-                  <p className="text-xl md:text-2xl font-bold text-slate-800">19:08</p>
-                </div>
+                {[
+                  { id: 'Subuh', time: jadwalShalat.subuh },
+                  { id: 'Dzuhur', time: jadwalShalat.dzuhur },
+                  { id: 'Ashar', time: jadwalShalat.ashar },
+                  { id: 'Maghrib', time: jadwalShalat.maghrib },
+                  { id: 'Isya', time: jadwalShalat.isya }
+                ].map((prayer) => {
+                  const isActive = nextPrayer.name.includes(prayer.id);
+                  return (
+                    <div key={prayer.id} className={isActive ? 
+                      "bg-emerald-800 rounded-2xl p-4 text-center text-white flex flex-col justify-center shadow-lg relative overflow-hidden" : 
+                      "bg-slate-50 border border-slate-200/80 rounded-2xl p-4 text-center text-slate-700 flex flex-col justify-center hover:bg-slate-100/80 transition-colors"
+                    }>
+                      {isActive && <div className="absolute top-0 right-0 p-2 opacity-20"><Zap className="w-8 h-8" /></div>}
+                      <p className={`text-xs font-semibold uppercase tracking-wider mb-1 ${isActive ? 'text-emerald-200 relative z-10' : 'text-slate-500'}`}>
+                        {prayer.id}
+                      </p>
+                      <p className={`text-xl md:text-2xl font-bold ${!isActive && 'text-slate-800'}`}>
+                        {prayer.time}
+                      </p>
+                      {isActive && (
+                        <span className="text-[9px] bg-emerald-800 border border-emerald-600 text-emerald-200 py-0.5 px-2 rounded-full mt-1.5 font-semibold z-10 relative self-center">
+                          Berikutnya
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
@@ -864,7 +888,7 @@ export const JamaahDashboard: React.FC<JamaahDashboardProps> = ({ onBack, nama, 
               <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
                 <div>
                   <div className="flex items-center gap-2 mb-2">
-                    <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider flex items-center gap-1">
+                    <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 text-xs font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider flex items-center gap-1">
                       <Sparkles className="w-3 h-3 text-lime-300" /> Layanan Aspirasi & Tanya Jawab
                     </span>
                   </div>
@@ -874,7 +898,7 @@ export const JamaahDashboard: React.FC<JamaahDashboardProps> = ({ onBack, nama, 
                   </p>
                 </div>
                 <div className="bg-white/10 backdrop-blur-md p-4 rounded-2xl border border-white/20 shrink-0 text-center w-full md:w-auto">
-                  <p className="text-[10px] font-bold text-lime-300 uppercase tracking-wider">Hotline WA DKM</p>
+                  <p className="text-xs font-bold text-lime-300 uppercase tracking-wider">Hotline WA DKM</p>
                   <p className="text-base font-extrabold text-white mt-0.5">0812-1920-0400</p>
                   <a
                     href="https://wa.me/6281219200400?text=Assalamu'alaikum%20Pengurus%20DKM%20Masjid%20Citra%20Sentul%20Raya,%20saya%20ingin%20bertanya:"
@@ -979,12 +1003,12 @@ export const JamaahDashboard: React.FC<JamaahDashboardProps> = ({ onBack, nama, 
                       <div key={item.id} className="bg-slate-50/80 rounded-2xl p-4 border border-slate-200/80 space-y-3 hover:border-emerald-200 transition-all">
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase">
+                            <span className="bg-emerald-100 text-emerald-800 text-xs font-bold px-2.5 py-0.5 rounded-full uppercase">
                               {item.kategori}
                             </span>
-                            <span className="text-[10px] text-slate-400 font-medium">{item.tanggal}</span>
+                            <span className="text-xs text-slate-400 font-medium">{item.tanggal}</span>
                           </div>
-                          <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full shrink-0 ${
+                          <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full shrink-0 ${
                             item.status === 'Dijawab' ? 'bg-emerald-600 text-white' : 'bg-amber-100 text-amber-800 border border-amber-300'
                           }`}>
                             {item.status === 'Dijawab' ? '✓ Telah Dijawab DKM' : '⏳ Menunggu Jawaban'}
@@ -994,7 +1018,7 @@ export const JamaahDashboard: React.FC<JamaahDashboardProps> = ({ onBack, nama, 
                         <div>
                           <h4 className="font-bold text-sm text-slate-800">{item.judul}</h4>
                           <p className="text-xs text-slate-600 mt-1 leading-relaxed">{item.pesan}</p>
-                          <p className="text-[10px] text-slate-400 mt-1 font-semibold">Oleh: {item.namaPenanya}</p>
+                          <p className="text-xs text-slate-400 mt-1 font-semibold">Oleh: {item.namaPenanya}</p>
                         </div>
 
                         {/* Jawaban DKM Box */}
@@ -1004,7 +1028,7 @@ export const JamaahDashboard: React.FC<JamaahDashboardProps> = ({ onBack, nama, 
                               <span className="flex items-center gap-1.5">
                                 <ShieldCheck className="w-3.5 h-3.5 text-emerald-700" /> Respon Resmi DKM ({item.penjawabDkm || 'Tim Syariah DKM'})
                               </span>
-                              <span className="text-[10px] text-emerald-700 font-normal">{item.tanggalJawaban}</span>
+                              <span className="text-xs text-emerald-700 font-normal">{item.tanggalJawaban}</span>
                             </div>
                             <p className="text-slate-700 text-xs leading-relaxed pt-1">{item.jawabanDkm}</p>
                           </div>
@@ -1120,7 +1144,7 @@ export const JamaahDashboard: React.FC<JamaahDashboardProps> = ({ onBack, nama, 
                             : 'border-slate-200 bg-white hover:border-emerald-300 text-slate-700'
                         }`}
                       >
-                        <div className={`px-2.5 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider ${w.color}`}>
+                        <div className={`px-2.5 py-0.5 rounded-md text-xs font-black uppercase tracking-wider ${w.color}`}>
                           {w.name}
                         </div>
                         <span className="text-[11px] font-semibold text-slate-600">
@@ -1357,7 +1381,7 @@ export const JamaahDashboard: React.FC<JamaahDashboardProps> = ({ onBack, nama, 
               </div>
 
               <div className="bg-white/10 p-5 rounded-2xl backdrop-blur-xs border border-white/20 w-full md:w-auto text-center md:text-left">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-300 mb-1">Total Khatam</p>
+                <p className="text-xs font-bold uppercase tracking-wider text-emerald-300 mb-1">Total Khatam</p>
                 <p className="text-2xl font-bold">{khatamCount} Kali</p>
                 <button 
                   onClick={() => {
@@ -1397,7 +1421,7 @@ export const JamaahDashboard: React.FC<JamaahDashboardProps> = ({ onBack, nama, 
                       </div>
                       <div>
                         <p className="font-bold text-xs text-slate-800 group-hover:text-emerald-800">{surah.name}</p>
-                        <p className="text-[10px] text-slate-500">{surah.ayahs} Ayat</p>
+                        <p className="text-xs text-slate-500">{surah.ayahs} Ayat</p>
                       </div>
                     </div>
                     <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-emerald-700" />
@@ -1417,13 +1441,12 @@ export const JamaahDashboard: React.FC<JamaahDashboardProps> = ({ onBack, nama, 
             </div>
             <div className="p-6 space-y-3">
               {[
-                { name: 'Tahajjud (Sunnah)', time: '03:00 WIB', key: 'tahajjud', isSunnah: true },
-                { name: 'Subuh', time: '04:35 WIB', key: 'subuh', isSunnah: false },
+                { name: 'Subuh', time: `${jadwalShalat.subuh} WIB`, key: 'subuh', isSunnah: false },
                 { name: 'Dhuha (Sunnah)', time: '07:30 WIB', key: 'dhuha', isSunnah: true },
-                { name: 'Dzuhur', time: '11:58 WIB', key: 'dzuhur', isSunnah: false },
-                { name: 'Ashar', time: '15:15 WIB', key: 'ashar', isSunnah: false },
-                { name: 'Maghrib', time: '17:55 WIB', key: 'maghrib', isSunnah: false },
-                { name: 'Isya', time: '19:08 WIB', key: 'isya', isSunnah: false },
+                { name: 'Dzuhur', time: `${jadwalShalat.dzuhur} WIB`, key: 'dzuhur', isSunnah: false },
+                { name: 'Ashar', time: `${jadwalShalat.ashar} WIB`, key: 'ashar', isSunnah: false },
+                { name: 'Maghrib', time: `${jadwalShalat.maghrib} WIB`, key: 'maghrib', isSunnah: false },
+                { name: 'Isya', time: `${jadwalShalat.isya} WIB`, key: 'isya', isSunnah: false },
               ].map((s) => (
                 <div key={s.key} className={`flex items-center justify-between p-4 border rounded-2xl ${s.isSunnah ? 'bg-amber-50/40 border-amber-200/80' : 'bg-slate-50/60 border-slate-200/80'}`}>
                   <div>
@@ -1459,7 +1482,7 @@ export const JamaahDashboard: React.FC<JamaahDashboardProps> = ({ onBack, nama, 
                     <div className="md:flex">
                       <div className="md:w-1/3 h-48 md:h-auto relative bg-slate-100">
                         <img src={program.gambar || "https://images.unsplash.com/photo-1564769625905-50e93615e769?auto=format&fit=crop&w=800&q=80"} alt={program.judul} className="w-full h-full object-cover opacity-80" />
-                        <div className="absolute top-3 left-3 bg-emerald-700 text-white text-[10px] font-bold px-2.5 py-1 rounded-md uppercase">{program.kategori}</div>
+                        <div className="absolute top-3 left-3 bg-emerald-700 text-white text-xs font-bold px-2.5 py-1 rounded-md uppercase">{program.kategori}</div>
                       </div>
                       <div className="p-6 md:w-2/3 flex flex-col justify-center">
                         <h3 className="text-base md:text-lg font-bold text-slate-800 mb-1">{program.judul}</h3>
@@ -1517,7 +1540,7 @@ export const JamaahDashboard: React.FC<JamaahDashboardProps> = ({ onBack, nama, 
                       <td className="px-6 py-4 font-bold text-slate-800">{d.programName}</td>
                       <td className="px-6 py-4 text-emerald-700 font-bold">{formatRp(d.nominal)}</td>
                       <td className="px-6 py-4">
-                        <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${
+                        <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${
                           d.status === 'Berhasil' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
                         }`}>
                           {d.status}

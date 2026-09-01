@@ -140,7 +140,7 @@ export const ModulBukuBesar: React.FC<ModulBukuBesarProps> = ({
             >
               <div className="flex justify-between items-center w-full">
                 <span className="font-mono text-xs font-bold">{a.kode}</span>
-                <span className={`text-[10px] px-2 py-0.5 rounded-md font-bold uppercase ${
+                <span className={`text-xs px-2 py-0.5 rounded-md font-bold uppercase ${
                   selectedKode === a.kode ? 'bg-lime-600 text-white' : 'bg-slate-200 text-slate-600'
                 }`}>
                   {a.jenis}

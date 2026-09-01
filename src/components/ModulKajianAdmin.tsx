@@ -159,7 +159,7 @@ export const ModulKajianAdmin: React.FC = () => {
               <div key={k.id} className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col">
                 <div className="p-5 border-b border-slate-100 flex-1">
                   <div className="flex justify-between items-start mb-2">
-                    <span className="px-2 py-0.5 bg-lime-100 text-lime-700 text-[10px] font-bold rounded uppercase">Kajian</span>
+                    <span className="px-2 py-0.5 bg-lime-100 text-lime-700 text-xs font-bold rounded uppercase">Kajian</span>
                     <div className="flex gap-1">
                       <button onClick={() => {
                         setFormData({ id: k.id, judul: k.judul, ustadz: k.ustadz, tanggal: k.tanggal, waktu: k.waktu, kuota: k.kuota, deskripsi: k.deskripsi || '' });

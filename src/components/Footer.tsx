@@ -26,7 +26,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onOpenWakafModal }) 
                 <h3 className="text-lg font-black text-white leading-tight">
                   MASJID CITRA SENTUL RAYA
                 </h3>
-                <span className="text-[10px] text-lime-300 block">
+                <span className="text-xs text-lime-300 block">
                   Kawasan Sirkuit Sentul, Kabupaten Bogor
                 </span>
               </div>
@@ -37,9 +37,9 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onOpenWakafModal }) 
             </p>
 
             <div className="bg-lime-900/90 border border-lime-700/80 p-3.5 rounded-2xl space-y-1 max-w-sm">
-              <span className="text-[10px] text-lime-300 block font-semibold">Rekening Resmi BSI (Bank Syariah Indonesia)</span>
+              <span className="text-xs text-lime-300 block font-semibold">Rekening Resmi BSI (Bank Syariah Indonesia)</span>
               <span className="text-xl font-mono font-black text-lime-300">7257159102</span>
-              <span className="text-[10px] text-lime-200 block">a.n. Masjid Citra Sentul Raya</span>
+              <span className="text-xs text-lime-200 block">a.n. Masjid Citra Sentul Raya</span>
             </div>
           </div>
 
@@ -102,7 +102,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onOpenWakafModal }) 
               </a>
             </div>
 
-            <div className="pt-2 text-[10px] text-lime-300 italic border-t border-lime-800/80">
+            <div className="pt-2 text-xs text-lime-300 italic border-t border-lime-800/80">
               "Perumpamaan orang yang menafkahkan hartanya di jalan Allah adalah serupa dengan sebutir benih yang menumbuhkan tujuh bulir..." (QS. Al-Baqarah: 261)
             </div>
           </div>

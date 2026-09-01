@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import confetti from 'canvas-confetti';
 import {
   HeartHandshake,
@@ -21,7 +21,7 @@ import {
   FileText,
 } from 'lucide-react';
 import jsPDF from 'jspdf';
-import { PAKET_WAKAF_LIST } from '../data/mockData';
+import { supabase } from '../lib/supabase';
 import { formatRupiah, buildWhatsAppLink, generateUniqueCode } from '../utils/formatters';
 import { Muwakif } from '../types';
 
@@ -31,7 +31,19 @@ interface WakafFormProps {
 }
 
 export const WakafForm: React.FC<WakafFormProps> = ({ onAddMuwakif, onShowCertificate }) => {
-  const [selectedPaket, setSelectedPaket] = useState<string>('p-3'); // Default 1m²
+  const [paketList, setPaketList] = useState<any[]>([]);
+  const [selectedPaket, setSelectedPaket] = useState<string>('');
+  
+  useEffect(() => {
+    const fetchPaket = async () => {
+      const { data, error } = await supabase.from('paket_wakaf').select('*').order('urutan', { ascending: true });
+      if (!error && data) {
+        setPaketList(data);
+        if (data.length > 0) setSelectedPaket(data[0].id);
+      }
+    };
+    fetchPaket();
+  }, []);
   const [customNominal, setCustomNominal] = useState<string>('1500000');
   const [nama, setNama] = useState<string>('');
   const [isHambaAllah, setIsHambaAllah] = useState<boolean>(false);
@@ -92,7 +104,7 @@ export const WakafForm: React.FC<WakafFormProps> = ({ onAddMuwakif, onShowCertif
   };
 
   // Compute base nominal
-  const selectedPaketObj = PAKET_WAKAF_LIST.find((p) => p.id === selectedPaket);
+  const selectedPaketObj = paketList.find((p) => p.id === selectedPaket);
   const baseNominal = selectedPaket === 'custom'
     ? Math.max(10000, parseInt(customNominal || '0', 10))
     : selectedPaketObj ? selectedPaketObj.nominal : 100000;
@@ -170,9 +182,9 @@ export const WakafForm: React.FC<WakafFormProps> = ({ onAddMuwakif, onShowCertif
           </div>
 
           <div className="bg-emerald-950/80 border border-emerald-600/60 rounded-2xl p-3 text-right">
-            <span className="text-[10px] text-emerald-300 block">Nomor Rekening Resmi BSI</span>
+            <span className="text-xs text-emerald-300 block">Nomor Rekening Resmi BSI</span>
             <span className="text-xl font-mono font-black text-lime-300">7257159102</span>
-            <span className="text-[10px] text-emerald-200 block font-semibold">a.n. Masjid Citra Sentul Raya</span>
+            <span className="text-xs text-emerald-200 block font-semibold">a.n. Masjid Citra Sentul Raya</span>
           </div>
         </div>
       </div>
@@ -188,7 +200,7 @@ export const WakafForm: React.FC<WakafFormProps> = ({ onAddMuwakif, onShowCertif
               </label>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                {PAKET_WAKAF_LIST.map((paket) => {
+                {paketList.map((paket) => {
                   const isSelected = selectedPaket === paket.id;
                   return (
                     <button
@@ -202,7 +214,7 @@ export const WakafForm: React.FC<WakafFormProps> = ({ onAddMuwakif, onShowCertif
                       }`}
                     >
                       {paket.populer && (
-                        <span className="absolute -top-2.5 right-3 bg-gradient-to-r from-amber-500 to-amber-600 text-white text-[10px] font-extrabold px-2 py-0.5 rounded-full shadow-2xs">
+                        <span className="absolute -top-2.5 right-3 bg-gradient-to-r from-amber-500 to-amber-600 text-white text-xs font-extrabold px-2 py-0.5 rounded-full shadow-2xs">
                           {paket.badge}
                         </span>
                       )}
@@ -403,7 +415,7 @@ export const WakafForm: React.FC<WakafFormProps> = ({ onAddMuwakif, onShowCertif
                         <span className="text-2xl font-black text-white">
                           {formatRupiah(totalTransfer)}
                         </span>
-                        <span className="text-[10px] text-emerald-400 block mt-0.5">
+                        <span className="text-xs text-emerald-400 block mt-0.5">
                           *Termasuk kode unik verifikasi otomatis Rp {uniqueCode}
                         </span>
                       </div>
@@ -435,7 +447,7 @@ export const WakafForm: React.FC<WakafFormProps> = ({ onAddMuwakif, onShowCertif
                     <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-emerald-800/80">
                       <div className="flex items-center gap-1.5">
                         <span className="w-2 h-2 rounded-full bg-lime-400 animate-pulse"></span>
-                        <span className="text-[10px] font-black tracking-wider text-lime-300 uppercase">QRIS INSTAN</span>
+                        <span className="text-xs font-black tracking-wider text-lime-300 uppercase">QRIS INSTAN</span>
                       </div>
                       <div className="flex gap-1.5">
                         <span className="text-[9px] bg-lime-400/20 text-lime-300 px-2 py-0.5 rounded-md font-bold border border-lime-400/30">
@@ -492,7 +504,7 @@ export const WakafForm: React.FC<WakafFormProps> = ({ onAddMuwakif, onShowCertif
                             <span>Scan QRIS untuk Wakaf</span>
                             <span className="text-[9px] font-normal text-emerald-300 bg-emerald-900/60 px-2 py-0.5 rounded border border-emerald-800">DKM Resmi</span>
                           </h4>
-                          <p className="text-[10px] text-emerald-300 mt-1 max-w-sm mx-auto sm:mx-0">
+                          <p className="text-xs text-emerald-300 mt-1 max-w-sm mx-auto sm:mx-0">
                             Pindai kode QR menggunakan aplikasi e-wallet atau mobile banking Anda untuk melakukan transfer instan.
                           </p>
                         </div>
@@ -710,7 +722,7 @@ export const WakafForm: React.FC<WakafFormProps> = ({ onAddMuwakif, onShowCertif
                 <span className="text-[11px] font-mono font-bold text-slate-600 bg-slate-100 border border-slate-200 px-2.5 py-1 rounded-lg">
                   NMID: ID1023304558381
                 </span>
-                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded-lg">
+                <span className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded-lg">
                   GPN Verified
                 </span>
               </div>
@@ -722,10 +734,10 @@ export const WakafForm: React.FC<WakafFormProps> = ({ onAddMuwakif, onShowCertif
 
               {/* Supported apps */}
               <div>
-                <p className="text-[10px] text-center text-slate-400 uppercase tracking-wider font-semibold mb-2">Didukung oleh</p>
+                <p className="text-xs text-center text-slate-400 uppercase tracking-wider font-semibold mb-2">Didukung oleh</p>
                 <div className="flex flex-wrap gap-1.5 justify-center">
                   {['GoPay','OVO','Dana','ShopeePay','LinkAja','BCA','Mandiri','BRI','BSI','BNI'].map(w => (
-                    <span key={w} className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md font-semibold border border-slate-200">{w}</span>
+                    <span key={w} className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md font-semibold border border-slate-200">{w}</span>
                   ))}
                 </div>
               </div>
@@ -734,7 +746,7 @@ export const WakafForm: React.FC<WakafFormProps> = ({ onAddMuwakif, onShowCertif
               <div className="flex gap-2 pt-1">
                 <button
                   type="button"
-                  onClick={handleDownloadQris}
+                  onClick={() => handleDownloadQris()}
                   className="flex-1 py-3 px-4 bg-gradient-to-r from-emerald-700 to-teal-700 hover:from-emerald-800 hover:to-teal-800 text-white font-bold text-xs rounded-xl shadow-md flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer"
                 >
                   <Download className="w-4 h-4 text-lime-300" />

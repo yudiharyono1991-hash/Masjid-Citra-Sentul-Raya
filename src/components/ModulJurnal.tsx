@@ -69,7 +69,7 @@ export const ModulJurnal: React.FC<ModulJurnalProps> = ({
       updated[index].kodeAkun = value;
       updated[index].namaAkun = selectedCoA ? selectedCoA.nama : '';
     } else {
-      updated[index][field] = value;
+      (updated[index] as any)[field] = value;
     }
     setFormBaris(updated);
   };

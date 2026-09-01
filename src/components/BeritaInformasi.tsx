@@ -1,16 +1,37 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Newspaper, Calendar, User, Clock, ArrowRight, X, Sparkles } from 'lucide-react';
-import { BERITA_LIST } from '../data/mockData';
+import { supabase } from '../lib/supabase';
 import { BeritaInfo } from '../types';
 import { formatTanggalIndo } from '../utils/formatters';
 
 export const BeritaInformasi: React.FC = () => {
+  const [beritaList, setBeritaList] = useState<BeritaInfo[]>([]);
   const [selectedBerita, setSelectedBerita] = useState<BeritaInfo | null>(null);
   const [activeKategori, setActiveKategori] = useState<string>('Semua');
 
+  useEffect(() => {
+    const fetchBerita = async () => {
+      const { data, error } = await supabase.from('berita_masjid').select('*').order('tanggal', { ascending: false });
+      if (!error && data) {
+        setBeritaList(data.map(d => ({
+          id: d.id,
+          judul: d.judul,
+          ringkasan: d.ringkasan,
+          konten: d.konten,
+          kategori: d.kategori,
+          tanggal: d.tanggal,
+          penulis: d.penulis,
+          gambarUrl: d.gambar_url,
+          bacaMenit: d.baca_menit
+        })));
+      }
+    };
+    fetchBerita();
+  }, []);
+
   const kategoriList = ['Semua', 'Pembangunan', 'Kegiatan', 'Pengumuman'];
 
-  const filteredBerita = BERITA_LIST.filter(
+  const filteredBerita = beritaList.filter(
     (b) => activeKategori === 'Semua' || b.kategori === activeKategori
   );
 
@@ -64,7 +85,7 @@ export const BeritaInformasi: React.FC = () => {
                     alt={b.judul}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                   />
-                  <span className="absolute top-3 left-3 bg-emerald-900/90 text-lime-300 border border-emerald-600/50 text-[10px] font-extrabold px-3 py-1 rounded-full backdrop-blur-xs">
+                  <span className="absolute top-3 left-3 bg-emerald-900/90 text-lime-300 border border-emerald-600/50 text-xs font-extrabold px-3 py-1 rounded-full backdrop-blur-xs">
                     {b.kategori}
                   </span>
                 </div>
@@ -125,7 +146,7 @@ export const BeritaInformasi: React.FC = () => {
               </button>
 
               <div className="absolute bottom-6 left-6 right-6 text-white space-y-2">
-                <span className="bg-emerald-600 text-white text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider">
+                <span className="bg-emerald-600 text-white text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider">
                   {selectedBerita.kategori}
                 </span>
                 <h3 className="text-xl sm:text-2xl font-black">{selectedBerita.judul}</h3>

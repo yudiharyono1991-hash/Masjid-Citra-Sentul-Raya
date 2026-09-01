@@ -1,9 +1,30 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Youtube, Facebook, Instagram } from 'lucide-react';
-import { VIDEOS_DAKWAH } from '../data/mockData';
+import { supabase } from '../lib/supabase';
+import { VideoDakwah } from '../types';
 
 export const MediaSosial = () => {
-  const mainVideo = VIDEOS_DAKWAH[0];
+  const [mainVideo, setMainVideo] = useState<VideoDakwah | null>(null);
+
+  useEffect(() => {
+    const fetchVideo = async () => {
+      const { data, error } = await supabase.from('video_dakwah').select('*').order('tanggal', { ascending: false }).limit(1).maybeSingle();
+      if (!error && data) {
+        setMainVideo({
+          id: data.id,
+          youtubeId: data.youtube_id,
+          judul: data.judul,
+          penceramah: data.penceramah,
+          durasi: data.durasi,
+          kategori: data.kategori,
+          tanggal: data.tanggal
+        });
+      }
+    };
+    fetchVideo();
+  }, []);
+
+  if (!mainVideo) return null;
 
   return (
     <section className="py-16 bg-slate-50" id="media">

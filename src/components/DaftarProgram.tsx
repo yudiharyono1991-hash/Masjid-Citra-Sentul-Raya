@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Wallet, Upload, X, CheckCircle, ZoomIn, ZoomOut, Download, Copy, Check, QrCode, FileText } from 'lucide-react';
+import { Wallet, Upload, X, CheckCircle, ZoomIn, ZoomOut, Download, Copy, Check, QrCode, FileText, Smartphone } from 'lucide-react';
 import jsPDF from 'jspdf';
 
 interface Program {
@@ -17,9 +17,11 @@ interface Program {
 interface DaftarProgramProps {
   programs: Program[];
   onDonate?: (programId: number, nominal: number, metode: string, bukti: File | string | null, namaDonatur: string, kontakDonatur: string) => void;
+  loggedInName?: string;
+  loggedInContact?: string;
 }
 
-export const DaftarProgram: React.FC<DaftarProgramProps> = ({ programs, onDonate }) => {
+export const DaftarProgram: React.FC<DaftarProgramProps> = ({ programs, onDonate, loggedInName, loggedInContact }) => {
   const [selectedProgramId, setSelectedProgramId] = useState<number | null>(null);
   const [nominal, setNominal] = useState('');
   const [metode, setMetode] = useState('QRIS');
@@ -157,8 +159,8 @@ export const DaftarProgram: React.FC<DaftarProgramProps> = ({ programs, onDonate
                         setNominal('');
                         setMetode('QRIS');
                         setBuktiDonasi(null);
-                        setNamaDonatur('');
-                        setKontakDonatur('');
+                        setNamaDonatur(loggedInName || '');
+                        setKontakDonatur(loggedInContact || '');
                       }}
                       className="bg-lime-600 hover:bg-lime-700 text-white font-bold py-1.5 px-4 rounded-lg text-sm transition-colors cursor-pointer"
                     >
@@ -275,7 +277,7 @@ export const DaftarProgram: React.FC<DaftarProgramProps> = ({ programs, onDonate
                           <div className="flex-1 space-y-2">
                             <div>
                               <p className="text-xs font-black text-white leading-tight">Scan & Bayar Sekarang</p>
-                              <p className="text-[10px] text-emerald-300 mt-0.5">a.n. Masjid Citra Sentul Raya</p>
+                              <p className="text-xs text-emerald-300 mt-0.5">a.n. Masjid Citra Sentul Raya</p>
                             </div>
                             <div>
                               <span className="text-[8px] font-mono font-bold text-emerald-300 bg-emerald-900/60 px-2 py-0.5 rounded border border-emerald-800 inline-block">
@@ -305,7 +307,7 @@ export const DaftarProgram: React.FC<DaftarProgramProps> = ({ programs, onDonate
                             <button
                               type="button"
                               onClick={handleCopyNominal}
-                              className="px-2 py-1 bg-lime-400 hover:bg-lime-300 text-emerald-950 text-[10px] font-black rounded-md flex items-center gap-1 active:scale-95 transition-all shadow-xs cursor-pointer"
+                              className="px-2 py-1 bg-lime-400 hover:bg-lime-300 text-emerald-950 text-xs font-black rounded-md flex items-center gap-1 active:scale-95 transition-all shadow-xs cursor-pointer"
                             >
                               {copiedNominal ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
                               <span>{copiedNominal ? 'Tersalin' : 'Salin'}</span>
@@ -326,7 +328,7 @@ export const DaftarProgram: React.FC<DaftarProgramProps> = ({ programs, onDonate
                           <button
                             type="button"
                             onClick={() => handleDownloadQris('jpg')}
-                            className="flex-1 text-[10px] font-bold text-emerald-100 bg-emerald-800 hover:bg-emerald-700 px-2 py-1.5 rounded-lg border border-emerald-700 flex items-center justify-center gap-1 transition-all active:scale-95 cursor-pointer"
+                            className="flex-1 text-xs font-bold text-emerald-100 bg-emerald-800 hover:bg-emerald-700 px-2 py-1.5 rounded-lg border border-emerald-700 flex items-center justify-center gap-1 transition-all active:scale-95 cursor-pointer"
                           >
                             <Download className="w-3 h-3" />
                             <span>JPG</span>
@@ -334,7 +336,7 @@ export const DaftarProgram: React.FC<DaftarProgramProps> = ({ programs, onDonate
                           <button
                             type="button"
                             onClick={() => handleDownloadQris('pdf')}
-                            className="flex-1 text-[10px] font-bold text-emerald-100 bg-emerald-800 hover:bg-emerald-700 px-2 py-1.5 rounded-lg border border-emerald-700 flex items-center justify-center gap-1 transition-all active:scale-95 cursor-pointer"
+                            className="flex-1 text-xs font-bold text-emerald-100 bg-emerald-800 hover:bg-emerald-700 px-2 py-1.5 rounded-lg border border-emerald-700 flex items-center justify-center gap-1 transition-all active:scale-95 cursor-pointer"
                           >
                             <FileText className="w-3 h-3" />
                             <span>PDF</span>
@@ -373,8 +375,30 @@ export const DaftarProgram: React.FC<DaftarProgramProps> = ({ programs, onDonate
                   <p className="text-sm text-slate-500 mb-6">
                     Jazakumullah Khairan. Donasi Anda sedang menunggu verifikasi dari pengurus DKM (Admin). Status dapat dicek pada menu Histori.
                   </p>
-                  <button onClick={() => setSelectedProgramId(null)} className="px-6 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-colors cursor-pointer">
-                    Kembali
+                  <div className="flex flex-col gap-3 mb-6">
+                    <button type="button" onClick={() => {
+                       const doc = new jsPDF();
+                       doc.setFontSize(16);
+                       doc.text('Bukti Donasi Sementara', 105, 20, { align: 'center' });
+                       doc.setFontSize(12);
+                       doc.text(`Program: ${programs.find(p => p.id === selectedProgramId)?.judul}`, 20, 40);
+                       doc.text(`Nominal: Rp ${nominal}`, 20, 50);
+                       doc.text(`Nama Donatur: ${namaDonatur || 'Hamba Allah'}`, 20, 60);
+                       doc.text(`Status: Menunggu Verifikasi`, 20, 70);
+                       doc.text('Terima kasih atas infak dan sedekah Anda.', 105, 90, { align: 'center' });
+                       doc.save(`Donasi_Sementara_${(namaDonatur || 'Donatur').replace(/[^a-zA-Z0-9]/g, '_')}.pdf`);
+                    }} className="w-full px-4 py-2.5 bg-emerald-100 hover:bg-emerald-200 text-emerald-700 font-bold rounded-xl transition-colors cursor-pointer flex items-center justify-center gap-2 text-sm border border-emerald-200">
+                      <FileText className="w-4 h-4" /> Unduh Bukti Sementara (PDF)
+                    </button>
+                    <button type="button" onClick={() => {
+                       const msg = `Assalamu'alaikum Admin DKM,\n\nSaya ${namaDonatur || 'Hamba Allah'} telah berdonasi sebesar Rp ${new Intl.NumberFormat('id-ID').format(parseInt(nominal || '0'))} untuk program *${programs.find(p => p.id === selectedProgramId)?.judul}*.\n\nMohon verifikasinya, jazakumullah khairan.`;
+                       window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
+                    }} className="w-full px-4 py-2.5 bg-[#25D366] hover:bg-[#128C7E] text-white font-bold rounded-xl transition-colors cursor-pointer flex items-center justify-center gap-2 text-sm shadow-md">
+                      <Smartphone className="w-4 h-4" /> Kirim Info ke WhatsApp
+                    </button>
+                  </div>
+                  <button onClick={() => setSelectedProgramId(null)} className="px-6 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-colors cursor-pointer w-full">
+                    Selesai & Tutup
                   </button>
                 </div>
               )}
@@ -438,7 +462,7 @@ export const DaftarProgram: React.FC<DaftarProgramProps> = ({ programs, onDonate
                 <span className="text-[11px] font-mono font-bold text-slate-600 bg-slate-100 border border-slate-200 px-2.5 py-1 rounded-lg">
                   NMID: ID1023304558381
                 </span>
-                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded-lg">
+                <span className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded-lg">
                   GPN Verified
                 </span>
               </div>
@@ -449,10 +473,10 @@ export const DaftarProgram: React.FC<DaftarProgramProps> = ({ programs, onDonate
 
               {/* Supported apps */}
               <div>
-                <p className="text-[10px] text-center text-slate-400 uppercase tracking-wider font-semibold mb-2">Didukung oleh</p>
+                <p className="text-xs text-center text-slate-400 uppercase tracking-wider font-semibold mb-2">Didukung oleh</p>
                 <div className="flex flex-wrap gap-1.5 justify-center">
                   {['GoPay','OVO','Dana','ShopeePay','LinkAja','BCA','Mandiri','BRI','BSI','BNI'].map(w => (
-                    <span key={w} className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md font-semibold border border-slate-200">{w}</span>
+                    <span key={w} className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md font-semibold border border-slate-200">{w}</span>
                   ))}
                 </div>
               </div>
@@ -461,7 +485,7 @@ export const DaftarProgram: React.FC<DaftarProgramProps> = ({ programs, onDonate
               <div className="flex gap-2 pt-1">
                 <button
                   type="button"
-                  onClick={handleDownloadQris}
+                  onClick={() => handleDownloadQris()}
                   className="flex-1 py-3 px-4 bg-gradient-to-r from-emerald-700 to-teal-700 hover:from-emerald-800 hover:to-teal-800 text-white font-bold text-xs rounded-xl shadow-md flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer"
                 >
                   <Download className="w-4 h-4 text-lime-300" />

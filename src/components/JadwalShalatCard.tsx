@@ -45,20 +45,20 @@ export const JadwalShalatCard: React.FC = () => {
             </p>
           </div>
 
-          <div className="flex items-center gap-4 bg-lime-700/80 border border-lime-500 px-5 py-3 rounded-2xl text-right shadow-md">
-            <div className="flex items-center gap-3 pr-4 border-r border-lime-500">
-              <Compass className="w-8 h-8 text-lime-200" />
+          <div className="flex flex-col sm:flex-row items-center sm:items-stretch gap-4 bg-lime-700/80 border border-lime-500 px-4 sm:px-5 py-3 rounded-2xl text-center sm:text-right shadow-md w-full md:w-auto">
+            <div className="flex items-center justify-center sm:justify-end gap-3 pb-3 sm:pb-0 sm:pr-4 border-b sm:border-b-0 sm:border-r border-lime-500 w-full sm:w-auto">
+              <Compass className="w-6 h-6 sm:w-8 sm:h-8 text-lime-200" />
               <div className="text-left">
-                <span className="text-[10px] text-lime-200 block font-semibold uppercase">Arah Kiblat</span>
-                <span className="text-lg font-bold text-white tracking-wider">
-                  295° <span className="text-xs font-normal">Barat Laut</span>
+                <span className="text-[10px] sm:text-xs text-lime-200 block font-semibold uppercase">Arah Kiblat</span>
+                <span className="text-base sm:text-lg font-bold text-white tracking-wider">
+                  295° <span className="text-[10px] sm:text-xs font-normal">Barat Laut</span>
                 </span>
               </div>
             </div>
             
-            <div>
-              <span className="text-[10px] text-lime-200 block font-semibold uppercase">Waktu Real-time</span>
-              <span className="text-2xl font-mono font-black text-white tracking-wider">
+            <div className="w-full sm:w-auto text-center sm:text-right">
+              <span className="text-[10px] sm:text-xs text-lime-200 block font-semibold uppercase">Waktu Real-time</span>
+              <span className="text-xl sm:text-2xl font-mono font-black text-white tracking-wider">
                 {currentTime.toLocaleTimeString('id-ID', { hour12: false })} WIB
               </span>
             </div>
@@ -67,12 +67,12 @@ export const JadwalShalatCard: React.FC = () => {
 
         {/* Next Prayer Highlight Banner */}
         <div className="bg-gradient-to-r from-lime-500 via-lime-400 to-green-500 border-2 border-white/50 rounded-2xl p-6 text-center sm:text-left flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xl">
-          <div className="space-y-1">
-            <span className="text-xs text-lime-900 font-extrabold uppercase tracking-widest block">
+          <div className="space-y-1 w-full text-center sm:text-left">
+            <span className="text-[10px] sm:text-xs text-lime-900 font-extrabold uppercase tracking-widest block">
               Menuju Adzan Berikutnya
             </span>
-            <h3 className="text-2xl sm:text-3xl font-black text-lime-950">
-              {nextPrayer.name} - <span className="text-white font-mono">{nextPrayer.time} WIB</span>
+            <h3 className="text-xl sm:text-3xl font-black text-lime-950">
+              {nextPrayer.name} - <span className="text-white font-mono break-all sm:break-normal">{nextPrayer.time} WIB</span>
             </h3>
           </div>
 
@@ -85,7 +85,7 @@ export const JadwalShalatCard: React.FC = () => {
               {isAudioMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
             </button>
             <div className="bg-lime-700/80 px-5 py-3 rounded-xl border border-lime-500 text-center">
-              <span className="text-[10px] text-lime-200 block uppercase">Sisa Waktu</span>
+              <span className="text-xs text-lime-200 block uppercase">Sisa Waktu</span>
               <span className="text-lg sm:text-xl font-bold text-white animate-pulse">
                 {nextPrayer.remainingText}
               </span>

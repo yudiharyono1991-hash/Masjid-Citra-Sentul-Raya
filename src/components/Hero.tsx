@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { ChevronLeft, ChevronRight, MapPin, Phone } from 'lucide-react';
 
-interface HeroSlide {
+export interface HeroSlide {
+  id?: number;
   image: string;
   title: string;
   subtitle: string;
@@ -9,12 +10,12 @@ interface HeroSlide {
   ctaAction?: string;
 }
 
-const slides: HeroSlide[] = [
+export const DEFAULT_HERO_SLIDES: HeroSlide[] = [
   {
     image: '/images/masjid-hero-night.png',
     title: 'Masjid Citra Sentul Raya',
     subtitle: 'Pusat Peradaban Islam & Kesejahteraan Umat di Kawasan Sirkuit Sentul, Bogor',
-    cta: 'Bayar Wakaf Sekarang',
+    cta: 'Pilih ZISWAF & Bayar Sekarang',
     ctaAction: 'ziswaf',
   },
   {
@@ -34,9 +35,25 @@ const slides: HeroSlide[] = [
 ];
 
 export const Hero = () => {
+  const [slides, setSlides] = useState<HeroSlide[]>(DEFAULT_HERO_SLIDES);
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
+
+  useEffect(() => {
+    // Check localStorage for admin preview overrides only
+    const saved = localStorage.getItem('heroSlides_preview');
+    if (saved) {
+      try { setSlides(JSON.parse(saved)); } catch {}
+    }
+
+    const handleStorageChange = () => {
+      const saved = localStorage.getItem('heroSlides_preview');
+      if (saved) setSlides(JSON.parse(saved));
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
 
   const goToSlide = useCallback((index: number) => {
     if (isTransitioning) return;

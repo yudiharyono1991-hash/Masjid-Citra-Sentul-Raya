@@ -2251,7 +2251,7 @@ export const AlQuranDigital: React.FC<AlQuranDigitalProps> = ({
                           className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-lime-500 hover:bg-lime-50/30 dark:hover:bg-lime-950/20 shadow-xs hover:shadow-md transition-all text-left flex justify-between items-center cursor-pointer group"
                         >
                           <div className="space-y-1">
-                            <span className="text-[10px] font-black px-2 py-0.5 rounded bg-lime-100 text-lime-900 dark:bg-lime-950 dark:text-lime-300">
+                            <span className="text-xs font-black px-2 py-0.5 rounded bg-lime-100 text-lime-900 dark:bg-lime-950 dark:text-lime-300">
                               {surah.nomor}
                             </span>
                             <h4 className="font-black text-base text-slate-900 dark:text-slate-100 group-hover:text-lime-700 transition-colors">

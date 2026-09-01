@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { BarChart3, Scale, Download, FileSpreadsheet, Layers, Filter, CheckCircle, AlertTriangle, ArrowRightLeft, ChevronDown } from 'lucide-react';
+import { BarChart3, Scale, Download, FileSpreadsheet, Layers, Filter, CheckCircle, AlertTriangle, ArrowRightLeft, ChevronDown, Printer } from 'lucide-react';
 import { INITIAL_CHART_OF_ACCOUNTS, INITIAL_JURNAL_ENTRIES, AkunCoA, JurnalEntry } from '../data/akuntansiData';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
@@ -385,6 +385,12 @@ export const ModulLaporanKeuangan: React.FC<ModulLaporanKeuanganProps> = ({
               <Download className="w-4 h-4 text-slate-500" /> Export PDF
             </button>
             <button
+              onClick={() => window.print()}
+              className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-4 py-2.5 rounded-xl text-xs transition-all border border-slate-200 cursor-pointer print:hidden"
+            >
+              <Printer className="w-4 h-4 text-slate-500" /> Cetak (Print)
+            </button>
+            <button
               onClick={handleExportExcel}
               className="flex items-center gap-1.5 bg-lime-600 hover:bg-lime-500 text-white font-bold px-4 py-2.5 rounded-2xl text-xs transition-all shadow-md cursor-pointer"
             >
@@ -400,13 +406,13 @@ export const ModulLaporanKeuangan: React.FC<ModulLaporanKeuanganProps> = ({
         {/* DANA ZAKAT CARD */}
         <div className="bg-gradient-to-br from-emerald-50 to-white border border-emerald-200 rounded-2xl p-3 shadow-xs relative overflow-hidden">
           <div className="flex items-center justify-between mb-1.5">
-            <span className="text-[10px] font-black text-emerald-800 uppercase tracking-wider flex items-center gap-1">
+            <span className="text-xs font-black text-emerald-800 uppercase tracking-wider flex items-center gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Dana Zakat
             </span>
             <span className="text-[9px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-md font-bold">Mustahik</span>
           </div>
           <p className="text-lg font-black font-mono text-emerald-900">{formatRp(zakatMetrics.totalSaldoNeto)}</p>
-          <div className="mt-1.5 pt-1.5 border-t border-emerald-100/80 text-[10px] space-y-0.5 font-medium">
+          <div className="mt-1.5 pt-1.5 border-t border-emerald-100/80 text-xs space-y-0.5 font-medium">
             <div className="flex justify-between text-emerald-700">
               <span>Terima Zakat:</span>
               <span className="font-mono font-bold">{formatRp(zakatMetrics.pendapatan)}</span>
@@ -421,13 +427,13 @@ export const ModulLaporanKeuangan: React.FC<ModulLaporanKeuanganProps> = ({
         {/* DANA INFAQ CARD */}
         <div className="bg-gradient-to-br from-blue-50 to-white border border-blue-200 rounded-2xl p-3 shadow-xs relative overflow-hidden">
           <div className="flex items-center justify-between mb-1.5">
-            <span className="text-[10px] font-black text-blue-800 uppercase tracking-wider flex items-center gap-1">
+            <span className="text-xs font-black text-blue-800 uppercase tracking-wider flex items-center gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span> Dana Infaq
             </span>
             <span className="text-[9px] bg-blue-100 text-blue-800 px-2 py-0.5 rounded-md font-bold">Jumat & Harian</span>
           </div>
           <p className="text-lg font-black font-mono text-blue-900">{formatRp(infaqMetrics.totalSaldoNeto)}</p>
-          <div className="mt-1.5 pt-1.5 border-t border-blue-100/80 text-[10px] space-y-0.5 font-medium">
+          <div className="mt-1.5 pt-1.5 border-t border-blue-100/80 text-xs space-y-0.5 font-medium">
             <div className="flex justify-between text-blue-700">
               <span>Terima Infak:</span>
               <span className="font-mono font-bold">{formatRp(infaqMetrics.pendapatan)}</span>
@@ -442,13 +448,13 @@ export const ModulLaporanKeuangan: React.FC<ModulLaporanKeuanganProps> = ({
         {/* DANA WAKAF CARD */}
         <div className="bg-gradient-to-br from-purple-50 to-white border border-purple-200 rounded-2xl p-3 shadow-xs relative overflow-hidden">
           <div className="flex items-center justify-between mb-1.5">
-            <span className="text-[10px] font-black text-purple-800 uppercase tracking-wider flex items-center gap-1">
+            <span className="text-xs font-black text-purple-800 uppercase tracking-wider flex items-center gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span> Dana Wakaf
             </span>
             <span className="text-[9px] bg-purple-100 text-purple-800 px-2 py-0.5 rounded-md font-bold">Aset Restriksi</span>
           </div>
           <p className="text-lg font-black font-mono text-purple-900">{formatRp(wakafMetrics.totalSaldoNeto)}</p>
-          <div className="mt-1.5 pt-1.5 border-t border-purple-100/80 text-[10px] space-y-0.5 font-medium">
+          <div className="mt-1.5 pt-1.5 border-t border-purple-100/80 text-xs space-y-0.5 font-medium">
             <div className="flex justify-between text-purple-700">
               <span>Wakaf Uang:</span>
               <span className="font-mono font-bold">{formatRp(wakafMetrics.pendapatan)}</span>
@@ -463,13 +469,13 @@ export const ModulLaporanKeuangan: React.FC<ModulLaporanKeuanganProps> = ({
         {/* DANA SODAQOH CARD */}
         <div className="bg-gradient-to-br from-amber-50 to-white border border-amber-200 rounded-2xl p-3 shadow-xs relative overflow-hidden">
           <div className="flex items-center justify-between mb-1.5">
-            <span className="text-[10px] font-black text-amber-800 uppercase tracking-wider flex items-center gap-1">
+            <span className="text-xs font-black text-amber-800 uppercase tracking-wider flex items-center gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span> Dana Sodaqoh
             </span>
             <span className="text-[9px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded-md font-bold">Sosial & Yatim</span>
           </div>
           <p className="text-lg font-black font-mono text-amber-900">{formatRp(sodaqohMetrics.totalSaldoNeto)}</p>
-          <div className="mt-1.5 pt-1.5 border-t border-amber-100/80 text-[10px] space-y-0.5 font-medium">
+          <div className="mt-1.5 pt-1.5 border-t border-amber-100/80 text-xs space-y-0.5 font-medium">
             <div className="flex justify-between text-amber-700">
               <span>Sedekah Masuk:</span>
               <span className="font-mono font-bold">{formatRp(sodaqohMetrics.pendapatan)}</span>
@@ -759,7 +765,7 @@ export const ModulLaporanKeuangan: React.FC<ModulLaporanKeuanganProps> = ({
                       AKTIVA / ASET (ASSETS)
                     </h4>
                     {selectedFundFilter !== 'Semua' && (
-                      <span className="text-[10px] font-bold bg-lime-100 text-lime-800 px-2 py-0.5 rounded-full uppercase">
+                      <span className="text-xs font-bold bg-lime-100 text-lime-800 px-2 py-0.5 rounded-full uppercase">
                         Dana {selectedFundFilter}
                       </span>
                     )}

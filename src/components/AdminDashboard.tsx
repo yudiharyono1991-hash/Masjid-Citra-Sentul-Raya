@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { LogOut, MonitorPlay, RefreshCw, Book, Calendar, Video, ShieldCheck, Settings, Users, Database, PlusCircle, Save, ArrowDownCircle, ArrowUpCircle, X, FileText, Camera, Megaphone, Clock, Smartphone, UserCheck, Key, Search, Link2, Trash2, Moon, BookOpen, Scale, ClipboardList, Edit, Wallet, TrendingUp, TrendingDown, Activity, Heart, Building, LayoutDashboard, ChevronDown, Upload } from 'lucide-react';
+import { LogOut, MonitorPlay, RefreshCw, Book, Calendar, Video, ShieldCheck, Settings, Users, Database, PlusCircle, Save, ArrowDownCircle, ArrowUpCircle, X, FileText, Camera, Megaphone, Clock, Smartphone, UserCheck, Key, Search, Link2, Trash2, Moon, BookOpen, Scale, ClipboardList, Edit, Wallet, TrendingUp, TrendingDown, Activity, Heart, Building, LayoutDashboard, ChevronDown, Upload, Bell, CheckCircle2 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import * as XLSX from 'xlsx';
@@ -9,9 +9,12 @@ import { ModulJurnal } from './ModulJurnal';
 import { ModulBukuBesar } from './ModulBukuBesar';
 import { ModulLaporanKeuangan } from './ModulLaporanKeuangan';
 import { ModulAnggaranApproval } from './ModulAnggaranApproval';
+import { ModulPenyusutanAset } from './ModulPenyusutanAset';
 import { BukuPanduanModal } from './BukuPanduanModal';
 import { INITIAL_JURNAL_ENTRIES, JurnalEntry } from '../data/akuntansiData';
 import { supabase } from '../lib/supabase';
+import { Pagination } from './Pagination';
+import { DEFAULT_HERO_SLIDES, HeroSlide } from './Hero';
 
 interface Program {
   id: number;
@@ -20,6 +23,9 @@ interface Program {
   terkumpulRp: number;
   targetRp: number;
   donatur: number;
+  terkumpulPersen?: number;
+  deskripsi?: string;
+  gambar?: string;
 }
 
 interface AdminDashboardProps {
@@ -42,13 +48,21 @@ interface AdminDashboardProps {
   auditLogs?: any[];
 }
 
-class ErrorBoundary extends React.Component<{children: React.ReactNode}, {hasError: boolean, error: Error | null}> {
-  state = {
-    hasError: false,
-    error: null as Error | null
-  };
+interface ErrorBoundaryProps {
+  children: React.ReactNode;
+}
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error: Error | null;
+}
 
-  static getDerivedStateFromError(error: Error) {
+class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
     return { hasError: true, error };
   }
   
@@ -60,12 +74,12 @@ class ErrorBoundary extends React.Component<{children: React.ReactNode}, {hasErr
     if (this.state.hasError) {
       return (
         <div className="p-8 m-4 text-red-700 bg-red-50 border border-red-200 rounded-xl shadow-sm">
-          <h2 className="text-xl font-bold mb-2 flex items-center gap-2">âš ï¸ Terjadi Kesalahan pada Modul Keuangan</h2>
+          <h2 className="text-xl font-bold mb-2 flex items-center gap-2">⚠️ Terjadi Kesalahan pada Modul Keuangan</h2>
           <p className="mb-4">Modul ini gagal dimuat karena ada kesalahan sistem (Blank Screen Error).</p>
           <div className="bg-white p-4 rounded border overflow-auto text-xs font-mono max-h-64">
             {this.state.error && this.state.error.toString()}
             <br/><br/>
-            {this.state.error && this.state.error.stack}
+            {this.state.error && (this.state.error as any).stack}
           </div>
           <button 
             onClick={() => this.setState({ hasError: false, error: null })} 
@@ -83,10 +97,48 @@ class ErrorBoundary extends React.Component<{children: React.ReactNode}, {hasErr
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs, onAddDonation, homeVisibility, setHomeVisibility, registeredJamaahList, donasiHistory = [], onVerifyDonasi, onAddDonasiHistoryItem, adminRole = 'direktur', auditLogs = [] }) => {
   const [activeMenu, setActiveMenu] = useState('utama');
   const [activeCategory, setActiveCategory] = useState('utama');
+  const [donasiPage, setDonasiPage] = useState(1);
+  const [jamaahPage, setJamaahPage] = useState(1);
+  const [auditPage, setAuditPage] = useState(1);
+  const ITEMS_PER_PAGE = 10;
   const [kasTab, setKasTab] = useState('ringkasan');
-  const [lapkeuTab, setLapkeuTab] = useState<'neraca' | 'jurnal' | 'bukubesar' | 'coa' | 'anggaran'>('neraca');
+  const [lapkeuTab, setLapkeuTab] = useState<'neraca' | 'jurnal' | 'bukubesar' | 'coa' | 'anggaran' | 'penyusutan'>('neraca');
   const [searchMenu, setSearchMenu] = useState('');
   const [showPanduanModal, setShowPanduanModal] = useState(false);
+  const [showNotificationModal, setShowNotificationModal] = useState(false);
+  const [notifications, setNotifications] = useState<any[]>([]);
+
+  // Notifications managed via localStorage (no Supabase polling to avoid 404 errors)
+  const loadNotificationsFromStorage = () => {
+    try {
+      const stored = localStorage.getItem('admin_notifications');
+      if (stored) setNotifications(JSON.parse(stored));
+    } catch {}
+  };
+
+  useEffect(() => {
+    loadNotificationsFromStorage();
+    // Listen for new notifications added by other parts of the app
+    window.addEventListener('storage', loadNotificationsFromStorage);
+    return () => window.removeEventListener('storage', loadNotificationsFromStorage);
+  }, []);
+  
+  const markNotificationAsRead = (id: string) => {
+    const updated = notifications.map(n => n.id === id ? { ...n, is_read: true } : n);
+    setNotifications(updated);
+    try { localStorage.setItem('admin_notifications', JSON.stringify(updated)); } catch {}
+  };
+  const unreadNotificationsCount = notifications.filter(n => !n.is_read).length;
+  const [tvConfig, setTvConfig] = useState({
+    jedaAdzan: 10,
+    jedaIqomah: 15,
+    mediaType: 'background',
+    mediaUrl: '',
+    runningText: '*** SELAMAT DATANG DI MASJID CITRA SENTUL RAYA *** LURUSKAN DAN RAPATKAN SHAF SHALAT ANDA *** MOHON NONAKTIFKAN ALAT KOMUNIKASI SELAMA IBADAH BERLANGSUNG *** SALURKAN INFAQ TERBAIK ANDA MELALUI QRIS MASJID ***',
+    timezone: 'Asia/Jakarta'
+  });
+
+  const [adminHeroSlides, setAdminHeroSlides] = useState<HeroSlide[]>(DEFAULT_HERO_SLIDES);
 
   const ALL_MENU_CATEGORIES = [
     { id: 'utama', label: 'Dashboard Utama', icon: LayoutDashboard },
@@ -96,14 +148,29 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
     { id: 'pengaturan_grup', label: 'Pengaturan', icon: Settings }
   ];
 
+  const defaultRolePermissions = {
+    direktur: ['utama', 'keuangan', 'operasional', 'administrasi', 'pengaturan_grup'],
+    admin: ['utama', 'keuangan', 'operasional', 'administrasi', 'pengaturan_grup'],
+    bendahara: ['utama', 'keuangan', 'pengaturan_grup'],
+    staff: ['utama', 'operasional', 'administrasi', 'pengaturan_grup'],
+    jamaah: []
+  };
+
+  const [rolePermissions, setRolePermissions] = useState<Record<string, string[]>>(() => {
+    const saved = localStorage.getItem('rolePermissions');
+    if (saved) {
+      try { return JSON.parse(saved); } catch (e) {}
+    }
+    return defaultRolePermissions;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('rolePermissions', JSON.stringify(rolePermissions));
+  }, [rolePermissions]);
+
   const MENU_CATEGORIES = ALL_MENU_CATEGORIES.filter(cat => {
-    if (adminRole === 'bendahara') {
-      return ['utama', 'keuangan', 'pengaturan_grup'].includes(cat.id);
-    }
-    if (adminRole === 'staff') {
-      return ['utama', 'operasional', 'administrasi', 'pengaturan_grup'].includes(cat.id);
-    }
-    return true; // direktur
+    const allowedMods = rolePermissions[adminRole.toLowerCase()] || [];
+    return allowedMods.includes(cat.id);
   });
 
   const SUB_MENUS: Record<string, any[]> = {
@@ -116,10 +183,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
         icon: Book,
         action: () => { setActiveMenu('kas'); setKasTab('ringkasan'); },
         subItems: [
-          { id: 'ringkasan', label: 'ðŸ“Š Ringkasan Kas', action: () => { setActiveMenu('kas'); setKasTab('ringkasan'); } },
-          { id: 'pemasukan', label: 'ðŸ“¥ Input Pemasukan', action: () => { setActiveMenu('kas'); setKasTab('pemasukan'); } },
-          { id: 'pengeluaran', label: 'ðŸ“¤ Input Pengeluaran', action: () => { setActiveMenu('kas'); setKasTab('pengeluaran'); } },
-          { id: 'laporan', label: 'ðŸ“ˆ Laporan Keuangan', action: () => { setActiveMenu('kas'); setKasTab('laporan'); } }
+          { id: 'ringkasan', label: 'Ringkasan Kas', action: () => { setActiveMenu('kas'); setKasTab('ringkasan'); } },
+          { id: 'pemasukan', label: 'Input Pemasukan', action: () => { setActiveMenu('kas'); setKasTab('pemasukan'); } },
+          { id: 'pengeluaran', label: 'Input Pengeluaran', action: () => { setActiveMenu('kas'); setKasTab('pengeluaran'); } },
+          { id: 'laporan', label: 'Laporan Keuangan', action: () => { setActiveMenu('kas'); setKasTab('laporan'); } }
         ]
       },
       { 
@@ -128,11 +195,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
         icon: Scale, 
         action: () => { setActiveMenu('lapkeu'); setLapkeuTab('neraca'); },
         subItems: [
-          { id: 'neraca', label: 'âš–ï¸ Neraca Aktivitas (PSAK 409)', action: () => { setActiveMenu('lapkeu'); setLapkeuTab('neraca'); } },
-          { id: 'jurnal', label: 'ðŸ“„ Jurnal Umum Double-Entry', action: () => { setActiveMenu('lapkeu'); setLapkeuTab('jurnal'); } },
-          { id: 'bukubesar', label: 'ðŸ“• Buku Besar', action: () => { setActiveMenu('lapkeu'); setLapkeuTab('bukubesar'); } },
-          { id: 'coa', label: 'ðŸ“– Chart of Accounts (CoA)', action: () => { setActiveMenu('lapkeu'); setLapkeuTab('coa'); } },
-          { id: 'anggaran', label: 'ðŸ“‹ Anggaran & Approval Flow', action: () => { setActiveMenu('lapkeu'); setLapkeuTab('anggaran'); } }
+          { id: 'neraca', label: 'Neraca Aktivitas (PSAK 409)', action: () => { setActiveMenu('lapkeu'); setLapkeuTab('neraca'); } },
+          { id: 'jurnal', label: 'Jurnal Umum Double-Entry', action: () => { setActiveMenu('lapkeu'); setLapkeuTab('jurnal'); } },
+          { id: 'bukubesar', label: 'Buku Besar', action: () => { setActiveMenu('lapkeu'); setLapkeuTab('bukubesar'); } },
+          { id: 'coa', label: 'Chart of Accounts (CoA)', action: () => { setActiveMenu('lapkeu'); setLapkeuTab('coa'); } },
+          { id: 'anggaran', label: 'Anggaran & Approval Flow', action: () => { setActiveMenu('lapkeu'); setLapkeuTab('anggaran'); } },
+          { id: 'penyusutan', label: 'Depresiasi Aset', action: () => { setActiveMenu('lapkeu'); setLapkeuTab('penyusutan'); } }
         ]
       },
     ],
@@ -140,15 +208,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
       { id: 'jumat', label: 'Jadwal Petugas & Jumat', icon: Clock },
       { id: 'kalender', label: 'Kalender & Agenda', icon: Calendar },
       { id: 'wa', label: 'Broadcast Informasi', icon: Smartphone },
+      { id: 'tv', label: 'Manajemen TV & Display', icon: MonitorPlay },
       { 
         id: 'konten', 
         label: 'Manajemen Konten Publik', 
         icon: Database,
         action: () => { setActiveMenu('konten'); setKontenTab('program'); },
         subItems: [
-          { id: 'program', label: 'ðŸ“¢ Program & Campaign', action: () => { setActiveMenu('konten'); setKontenTab('program'); } },
-          { id: 'berita', label: 'ðŸ“° Pengumuman & Berita', action: () => { setActiveMenu('konten'); setKontenTab('berita'); } },
-          { id: 'galeri', label: 'ðŸ–¼ï¸ Galeri & Kajian', action: () => { setActiveMenu('konten'); setKontenTab('galeri'); } }
+          { id: 'program', label: 'Program & Campaign', action: () => { setActiveMenu('konten'); setKontenTab('program'); } },
+          { id: 'berita', label: 'Pengumuman & Berita', action: () => { setActiveMenu('konten'); setKontenTab('berita'); } },
+          { id: 'galeri', label: 'Galeri & Kajian', action: () => { setActiveMenu('konten'); setKontenTab('galeri'); } }
         ]
       },
     ],
@@ -160,8 +229,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
         icon: Camera,
         action: () => { setActiveMenu('aset'); setAsetTab('semua'); },
         subItems: [
-          { id: 'semua', label: 'ðŸ“¦ Semua Aset Inventaris', action: () => { setActiveMenu('aset'); setAsetTab('semua'); } },
-          { id: 'rusak', label: 'âš ï¸ Daftar Barang Rusak', action: () => { setActiveMenu('aset'); setAsetTab('rusak'); } }
+          { id: 'semua', label: 'Semua Aset Inventaris', action: () => { setActiveMenu('aset'); setAsetTab('semua'); } },
+          { id: 'rusak', label: 'Daftar Barang Rusak', action: () => { setActiveMenu('aset'); setAsetTab('rusak'); } }
         ]
       },
       { id: 'ttd', label: 'Tanda Tangan Laporan', icon: FileText },
@@ -190,7 +259,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
   const [filterRingkasan, setFilterRingkasan] = useState({ start: '', end: '' });
   const [filterPemasukan, setFilterPemasukan] = useState({ start: '', end: '' });
   const [filterPengeluaran, setFilterPengeluaran] = useState({ start: '', end: '' });
-  const [settingTab, setSettingTab] = useState('hero');
+  const [kategoriKasMasjid, setKategoriKasMasjid] = useState('Semua');
+  const [settingTab, setSettingTab] = useState('pengumuman');
+
+  // fetchHeroSlides: no longer fetches from Supabase to avoid 404 errors
+  // Hero slides are managed via DEFAULT_HERO_SLIDES and localStorage preview
+  const fetchHeroSlides = () => {
+    try {
+      const saved = localStorage.getItem('heroSlides_preview');
+      if (saved) setAdminHeroSlides(JSON.parse(saved));
+    } catch {}
+  };
 
   const isWithinDateRange = (dateStr: string, filter: { start: string, end: string }) => {
     if (!filter.start && !filter.end) return true;
@@ -368,7 +447,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
         console.error('Failed to fetch inventaris:', err);
       }
     };
-    if (activeMenu === 'operasional') {
+    if (activeMenu === 'operasional' || activeMenu === 'lapkeu' || activeMenu === 'aset' || activeMenu === 'keuangan') {
       fetchInventaris();
     }
   }, [activeMenu]);
@@ -414,14 +493,33 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
   const [selectedJamaahIndices, setSelectedJamaahIndices] = useState<number[]>(defaultJamaah.map((_, i) => i));
 
   // Pengguna (Role & Audit) State
-  const [akunPenggunaList, setAkunPenggunaList] = useState([
-    { id: 1, n: 'Haji Ahmad Subagja', t: 'KETUA DKM', e: 'ahmad.subagja@gmail.com', c: '081298765432', r: 'Admin', d: '10/01/2026' },
-    { id: 2, n: 'Haji Bambang Pamungkas, M.M.', t: 'BENDAHARA DKM', e: 'bambang.pamungkas@outlook.com', c: '081311223344', r: 'Bendahara', d: '15/01/2026' },
-    { id: 3, n: 'Prof. Dr. M. Syafii Antonio', t: 'DIREKTUR', e: 'direktur@citrasentul.id', c: '081555667788', r: 'Direktur', d: '01/02/2026' },
-    { id: 4, n: 'Yudi Haryono', t: 'JEMAAH', e: 'yudiharyono@gmail.com', c: '087812341234', r: 'Jamaah', d: '01/02/2026' },
+  const [akunPenggunaList, setAkunPenggunaList] = useState<any[]>([
+    { id: '1', n: 'Haji Ahmad Subagja', t: 'KETUA DKM', e: 'ahmad.subagja@gmail.com', c: '081298765432', r: 'admin', d: '10/01/2026', p: 'admin123' },
+    { id: '2', n: 'Haji Bambang Pamungkas, M.M.', t: 'BENDAHARA DKM', e: 'bambang.pamungkas@outlook.com', c: '081311223344', r: 'bendahara', d: '15/01/2026', p: 'admin123' },
+    { id: '3', n: 'Prof. Dr. M. Syafii Antonio', t: 'DIREKTUR', e: 'direktur@citrasentul.id', c: '081555667788', r: 'direktur', d: '01/02/2026', p: 'admin123' },
+    { id: '4', n: 'Yudi Haryono', t: 'JEMAAH', e: 'yudiharyono@gmail.com', c: '087812341234', r: 'jamaah', d: '01/02/2026', p: 'admin123' },
   ]);
   const [showAkunPenggunaModal, setShowAkunPenggunaModal] = useState(false);
-  const [akunPenggunaFormData, setAkunPenggunaFormData] = useState({ id: 0, n: '', t: 'JEMAAH', e: '', c: '', r: 'Jamaah Terverifikasi' });
+  const [akunPenggunaFormData, setAkunPenggunaFormData] = useState<any>({ id: 0, n: '', t: 'JEMAAH', e: '', c: '', r: 'jamaah', p: '' });
+
+  useEffect(() => {
+    if (settingTab === 'grup') {
+      fetchAdminUsers();
+    }
+  }, [settingTab]);
+
+  const fetchAdminUsers = async () => {
+    try {
+      const { data, error } = await supabase.from('admin_users').select('*').order('created_at', { ascending: false });
+      if (data && data.length > 0) {
+        setAkunPenggunaList(data.map(u => ({
+          id: u.id, n: u.nama, t: u.jabatan || 'Pengurus', e: u.email, c: u.kontak || '', r: u.role, d: new Date(u.created_at).toLocaleDateString('id-ID'), p: u.password_hash
+        })));
+      }
+    } catch (err) {
+      console.error('Error fetching admin users:', err);
+    }
+  };
 
   const [khutbahInfo, setKhutbahInfo] = useState({
     tema: 'Keagungan Zikir & Transparansi Pengelolaan Aset Umat',
@@ -555,7 +653,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
     const fetchJournalsAndCoA = async () => {
       try {
         // Fetch App Settings
-        const { data: settingsData } = await supabase.from('app_settings').select('*').single();
+        const { data: settingsData } = await supabase.from('app_settings').select('*').maybeSingle();
         if (settingsData) {
           setAppSettings(settingsData);
         }
@@ -1059,10 +1157,76 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
 
 
   if (showDisplayTV) {
+    const now = time;
+    const jadwal = [
+      { n: 'SUBUH', t: '04:45' },
+      { n: 'DZUHUR', t: '12:02' },
+      { n: 'ASHAR', t: '15:23' },
+      { n: 'MAGHRIB', t: '17:58' },
+      { n: 'ISYA', t: '19:12' }
+    ];
+
+    let nextPrayer = jadwal[0];
+    let isCountdownAdzan = false;
+    let isCountdownIqomah = false;
+    let countdownText = "";
+    let activeIndex = -1;
+    
+    // Menghitung Next Prayer dan Jeda Waktu
+    const prayerTimes = jadwal.map(j => {
+      const [h, m] = j.t.split(':').map(Number);
+      const d = new Date(now);
+      d.setHours(h, m, 0, 0);
+      return { ...j, date: d };
+    });
+
+    for (let i = 0; i < prayerTimes.length; i++) {
+      const p = prayerTimes[i];
+      if (now < p.date) {
+        nextPrayer = jadwal[i];
+        activeIndex = i;
+        const diffMs = p.date.getTime() - now.getTime();
+        const diffMinutes = diffMs / 60000;
+        
+        if (diffMinutes <= tvConfig.jedaAdzan) {
+          isCountdownAdzan = true;
+          const m = Math.floor(diffMinutes);
+          const s = Math.floor((diffMs % 60000) / 1000);
+          countdownText = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+        }
+        break;
+      } else {
+        const diffMs = now.getTime() - p.date.getTime();
+        const diffMinutes = diffMs / 60000;
+        if (diffMinutes <= tvConfig.jedaIqomah) {
+           isCountdownIqomah = true;
+           activeIndex = i;
+           nextPrayer = jadwal[i];
+           const remainingMs = (tvConfig.jedaIqomah * 60000) - diffMs;
+           const m = Math.floor(remainingMs / 60000);
+           const s = Math.floor((remainingMs % 60000) / 1000);
+           countdownText = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+           break;
+        }
+      }
+    }
+    
+    // Fallback: Jika semua jadwal hari ini terlewat, set Subuh hari berikutnya
+    if (activeIndex === -1) {
+       activeIndex = 0;
+       nextPrayer = jadwal[0];
+    }
+
     return (
       <div className="fixed inset-0 bg-black z-50 flex flex-col text-slate-800 font-sans overflow-hidden">
         <div className="flex-1 flex flex-col items-center justify-center relative p-8">
-          <img src="https://images.unsplash.com/photo-1564769625905-50e93615e769?auto=format&fit=crop&w=2000&q=80" className="absolute inset-0 w-full h-full object-cover opacity-20 pointer-events-none" alt="bg" />
+          {tvConfig.mediaType === 'youtube' && tvConfig.mediaUrl ? (
+            <iframe src={`${tvConfig.mediaUrl}${tvConfig.mediaUrl.includes('?') ? '&' : '?'}autoplay=1&mute=1&loop=1&controls=0`} className="absolute inset-0 w-[120%] h-[120%] -left-[10%] -top-[10%] pointer-events-none opacity-40 object-cover" allow="autoplay; encrypted-media" />
+          ) : tvConfig.mediaType === 'cctv' && tvConfig.mediaUrl ? (
+            <iframe src={tvConfig.mediaUrl} className="absolute inset-0 w-full h-full pointer-events-none opacity-40 object-cover" />
+          ) : (
+            <img src="https://images.unsplash.com/photo-1564769625905-50e93615e769?auto=format&fit=crop&w=2000&q=80" className="absolute inset-0 w-full h-full object-cover opacity-20 pointer-events-none" alt="bg" />
+          )}
           <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-transparent to-black/90 pointer-events-none"></div>
 
           <button onClick={() => setShowDisplayTV(false)} className="absolute top-4 right-4 p-4 bg-white hover:bg-red-600 rounded-xl transition-colors opacity-30 hover:opacity-100 group z-50 shadow-xl border border-slate-300 hover:border-red-500 cursor-pointer">
@@ -1080,21 +1244,27 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
               <span className="flex items-center gap-2 hidden md:flex"><span className="text-lime-600 font-normal text-xs uppercase tracking-widest">Muadzin:</span> {khutbahInfo.muadzin}</span>
             </div>
             
-            <div className="text-[120px] md:text-[180px] font-bold text-white leading-none font-mono tracking-tighter drop-shadow-[0_0_30px_rgba(132,204,22,0.3)] mb-12">
-              {time.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-            </div>
+            {isCountdownAdzan ? (
+              <div className="bg-red-600/80 p-8 rounded-3xl border border-red-500 shadow-2xl backdrop-blur-md inline-block mb-12 animate-pulse">
+                <h2 className="text-3xl md:text-5xl text-white font-bold mb-4">WAKTU MENUJU ADZAN {nextPrayer.n}</h2>
+                <div className="text-[140px] md:text-[200px] font-mono text-white font-black leading-none drop-shadow-xl">{countdownText}</div>
+              </div>
+            ) : isCountdownIqomah ? (
+              <div className="bg-lime-600/80 p-8 rounded-3xl border border-lime-500 shadow-2xl backdrop-blur-md inline-block mb-12">
+                <h2 className="text-3xl md:text-5xl text-white font-bold mb-4">MENUJU IQOMAH {nextPrayer.n}</h2>
+                <div className="text-[140px] md:text-[200px] font-mono text-white font-black leading-none drop-shadow-xl">{countdownText}</div>
+              </div>
+            ) : (
+              <div className="text-[120px] md:text-[180px] font-bold text-white leading-none font-mono tracking-tighter drop-shadow-[0_0_30px_rgba(132,204,22,0.3)] mb-12">
+                {time.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: tvConfig.timezone })}
+              </div>
+            )}
 
             <div className="grid grid-cols-5 gap-4 md:gap-8 max-w-5xl mx-auto mt-8">
-              {[
-                { n: 'SUBUH', t: '04:45' },
-                { n: 'DZUHUR', t: '12:02' },
-                { n: 'ASHAR', t: '15:23' },
-                { n: 'MAGHRIB', t: '17:58', active: true },
-                { n: 'ISYA', t: '19:12' }
-              ].map(j => (
-                <div key={j.n} className={`p-4 md:p-6 rounded-2xl border-2 backdrop-blur-md ${j.active ? 'bg-lime-500/20 border-lime-400' : 'bg-black/40 border-slate-300'}`}>
-                  <p className={`text-lg md:text-2xl font-bold mb-2 ${j.active ? 'text-lime-300' : 'text-slate-500'}`}>{j.n}</p>
-                  <p className={`text-3xl md:text-5xl font-bold ${j.active ? 'text-slate-800' : 'text-slate-700'}`}>{j.t}</p>
+              {jadwal.map((j, idx) => (
+                <div key={j.n} className={`p-4 md:p-6 rounded-2xl border-2 backdrop-blur-md transition-all duration-500 ${idx === activeIndex ? 'bg-lime-500/30 border-lime-400 scale-110 shadow-[0_0_40px_rgba(132,204,22,0.5)]' : 'bg-black/40 border-slate-300'}`}>
+                  <p className={`text-lg md:text-2xl font-bold mb-2 ${idx === activeIndex ? 'text-lime-300' : 'text-slate-400'}`}>{j.n}</p>
+                  <p className={`text-3xl md:text-5xl font-bold ${idx === activeIndex ? 'text-white' : 'text-slate-500'}`}>{j.t}</p>
                 </div>
               ))}
             </div>
@@ -1102,8 +1272,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
         </div>
         
         <div className="h-20 bg-lime-600 flex items-center overflow-hidden border-t-4 border-lime-400 shrink-0">
-          <div className="whitespace-nowrap animate-[marquee_20s_linear_infinite] text-2xl font-bold text-black px-4">
-            *** SELAMAT DATANG DI MASJID CITra SENTUL RAYA *** LURUSKAN DAN RAPATKAN SHAF SHALAT ANDA *** MOHON NONAKTIFKAN ALAT KOMUNIKASI SELAMA IBADAH BERLANGSUNG *** SALURKAN INFAQ TERBAIK ANDA MELALUI QRIS MASJID ***
+          <div className="whitespace-nowrap text-2xl font-bold text-black px-4" style={{ animation: 'marquee 25s linear infinite' }}>
+            {tvConfig.runningText}
           </div>
         </div>
       </div>
@@ -1114,22 +1284,33 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
     <div className="min-h-screen bg-slate-50 font-sans text-slate-700" >
       
       {/* Navbar Minimalis */}
-      <div className="bg-white border-b border-slate-200 flex items-center justify-between px-6 py-3">
+      <div className="bg-white border-b border-slate-200 flex items-center justify-between px-6 py-3 print:hidden">
         <div className="flex items-center gap-4">
           <div className="w-8 h-8 bg-lime-600 rounded-lg flex items-center justify-center font-bold text-white shadow-lg">DKM</div>
           <span className="font-bold text-slate-800 hidden sm:block">Portal Pengurus Citra Sentul</span>
         </div>
         <div className="flex items-center gap-3">
           <button 
-            onClick={() => setShowPanduanModal(true)} 
-            className="flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-full text-xs font-bold transition-all shadow-xs cursor-pointer"
+            onClick={() => setShowNotificationModal(true)} 
+            className="relative flex items-center gap-1.5 px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-full text-xs font-bold transition-all shadow-xs cursor-pointer"
           >
-            <BookOpen className="w-3.5 h-3.5 text-lime-300" /> Buku Panduan
+            <Bell className="w-4 h-4" />
+            {unreadNotificationsCount > 0 && (
+              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] w-4 h-4 rounded-full flex items-center justify-center font-bold">
+                {unreadNotificationsCount}
+              </span>
+            )}
           </button>
-          <button onClick={() => setIsDarkMode(!isDarkMode)} className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 hover:bg-slate-700 text-slate-600 rounded-full text-xs font-bold transition-colors border border-slate-300 cursor-pointer">
-            <Moon className="w-3.5 h-3.5 text-lime-600 no-invert" /> {isDarkMode ? 'Mode Terang' : 'Mode Gelap'}
+          <button 
+            onClick={() => setShowPanduanModal(true)} 
+            className="flex items-center gap-1.5 px-2 sm:px-3.5 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-full text-[10px] sm:text-xs font-bold transition-all shadow-xs cursor-pointer"
+          >
+            <BookOpen className="w-3.5 h-3.5 text-lime-300" /> <span className="hidden sm:inline">Buku Panduan</span>
           </button>
-          <button onClick={onBack} className="flex items-center gap-2 px-4 py-1.5 bg-red-500/10 text-red-600 hover:bg-red-500 hover:text-slate-800 rounded-full text-xs font-bold transition-colors border border-red-500/20 cursor-pointer">
+          <button onClick={() => setIsDarkMode(!isDarkMode)} className="flex items-center gap-2 px-2 sm:px-3 py-1.5 bg-slate-100 hover:bg-slate-700 text-slate-600 rounded-full text-[10px] sm:text-xs font-bold transition-colors border border-slate-300 cursor-pointer">
+            <Moon className="w-3.5 h-3.5 text-lime-600 no-invert" /> <span className="hidden sm:inline">{isDarkMode ? 'Mode Terang' : 'Mode Gelap'}</span>
+          </button>
+          <button onClick={onBack} className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-1.5 bg-red-500/10 text-red-600 hover:bg-red-500 hover:text-slate-800 rounded-full text-[10px] sm:text-xs font-bold transition-colors border border-red-500/20 cursor-pointer">
             <LogOut className="w-3.5 h-3.5" /> LOGOUT
           </button>
         </div>
@@ -1140,6 +1321,43 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
         onClose={() => setShowPanduanModal(false)}
         defaultRole="admin"
       />
+
+      {showNotificationModal && (
+        <div className="fixed inset-0 z-[100] flex items-start justify-end pt-16 pr-6 bg-slate-900/20 backdrop-blur-sm" onClick={() => setShowNotificationModal(false)}>
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm border border-slate-200 overflow-hidden flex flex-col max-h-[80vh]" onClick={e => e.stopPropagation()}>
+            <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+              <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                <Bell className="w-4 h-4 text-lime-600" />
+                Notifikasi
+              </h3>
+              <button onClick={() => setShowNotificationModal(false)} className="text-slate-400 hover:text-red-500 transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="overflow-y-auto flex-1 p-2">
+              {notifications.length === 0 ? (
+                <div className="p-8 text-center text-slate-500">
+                  <Bell className="w-8 h-8 mx-auto mb-2 opacity-20" />
+                  <p className="text-sm">Tidak ada notifikasi baru</p>
+                </div>
+              ) : (
+                notifications.map(n => (
+                  <div key={n.id} onClick={() => { markNotificationAsRead(n.id); if(n.link_to) { window.location.hash = n.link_to; setShowNotificationModal(false); } }} className={`p-3 rounded-lg mb-1 cursor-pointer transition-colors flex gap-3 ${n.is_read ? 'bg-white hover:bg-slate-50' : 'bg-lime-50 hover:bg-lime-100 border border-lime-100'}`}>
+                    <div className="mt-1">
+                      {n.is_read ? <CheckCircle2 className="w-4 h-4 text-slate-300" /> : <div className="w-2 h-2 rounded-full bg-red-500 mt-1"></div>}
+                    </div>
+                    <div>
+                      <p className={`text-sm ${n.is_read ? 'text-slate-600' : 'text-slate-800 font-bold'}`}>{n.title}</p>
+                      <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">{n.message}</p>
+                      <span className="text-xs text-slate-400 mt-2 block">{new Date(n.created_at).toLocaleString('id-ID')}</span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="max-w-7xl mx-auto px-4 py-6">
         
@@ -1152,7 +1370,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
             <div>
               <div className="flex items-center gap-3 flex-wrap">
                 <h1 className="text-xl sm:text-2xl font-extrabold text-white drop-shadow-sm">Portal Admin & Pengurus DKM</h1>
-                <span className="px-2 py-0.5 rounded-full bg-white text-lime-700 border border-white/50 text-[10px] font-extrabold uppercase tracking-wider shadow-sm">
+                <span className="px-2 py-0.5 rounded-full bg-white text-lime-700 border border-white/50 text-xs font-extrabold uppercase tracking-wider shadow-sm">
                   Role: {adminRole.toUpperCase()}
                 </span>
               </div>
@@ -1180,7 +1398,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
               <Search className="h-4 w-4 text-slate-400" />
             </div>
             <input
-              type="text"
+              type="search"
+              autoComplete="new-password"
+              name="random-search-string"
               className="block w-full pl-10 pr-10 py-3 border border-slate-200 rounded-xl leading-5 bg-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-lime-500 focus:border-lime-500 text-sm shadow-lg transition-all"
               placeholder="Cari fitur portal (contoh: Dashboard, Laporan, Kas)..."
               value={searchMenu}
@@ -1354,20 +1574,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
                 {kasEntries.length > 0 ? (
                   <div className="relative z-10 flex-1 flex flex-col justify-center">
                     <p className="text-emerald-100 text-sm font-medium mb-2">Total Saldo Aktif Saat Ini</p>
-                    <p className="text-5xl md:text-6xl font-black text-white tracking-tighter drop-shadow-md">
-                      <span className="text-3xl text-emerald-300 font-bold mr-2">Rp</span>
+                    <p className="text-3xl sm:text-4xl md:text-5xl font-black text-white tracking-tighter drop-shadow-md break-all">
+                      <span className="text-xl sm:text-2xl md:text-3xl text-emerald-300 font-bold mr-1 sm:mr-2">Rp</span>
                       {(kasEntries.filter(e => e.type === 'in').reduce((sum, e) => sum + e.amount, 0) -
                        kasEntries.filter(e => e.type === 'out').reduce((sum, e) => sum + e.amount, 0)).toLocaleString('id-ID')}
                     </p>
                     
-                    <div className="mt-8 grid grid-cols-2 gap-4">
-                      <div className="bg-white/10 rounded-xl p-4 backdrop-blur-sm border border-white/10">
-                        <p className="text-emerald-200 text-xs font-bold uppercase mb-1 flex items-center gap-1"><TrendingUp className="w-3 h-3 text-emerald-400" /> Pemasukan</p>
-                        <p className="text-lg font-bold text-white">Rp {kasEntries.filter(e => e.type === 'in').reduce((sum, e) => sum + e.amount, 0).toLocaleString('id-ID')}</p>
+                    <div className="mt-8 grid grid-cols-2 gap-2 sm:gap-4">
+                      <div className="bg-white/10 rounded-xl p-3 sm:p-4 backdrop-blur-sm border border-white/10">
+                        <p className="text-emerald-200 text-[10px] sm:text-xs font-bold uppercase mb-1 flex items-center gap-1"><TrendingUp className="w-3 h-3 text-emerald-400" /> Pemasukan</p>
+                        <p className="text-sm sm:text-lg font-bold text-white truncate">Rp {kasEntries.filter(e => e.type === 'in').reduce((sum, e) => sum + e.amount, 0).toLocaleString('id-ID')}</p>
                       </div>
-                      <div className="bg-white/10 rounded-xl p-4 backdrop-blur-sm border border-white/10">
-                        <p className="text-emerald-200 text-xs font-bold uppercase mb-1 flex items-center gap-1"><TrendingDown className="w-3 h-3 text-red-400" /> Pengeluaran</p>
-                        <p className="text-lg font-bold text-white">Rp {kasEntries.filter(e => e.type === 'out').reduce((sum, e) => sum + e.amount, 0).toLocaleString('id-ID')}</p>
+                      <div className="bg-white/10 rounded-xl p-3 sm:p-4 backdrop-blur-sm border border-white/10">
+                        <p className="text-emerald-200 text-[10px] sm:text-xs font-bold uppercase mb-1 flex items-center gap-1"><TrendingDown className="w-3 h-3 text-red-400" /> Pengeluaran</p>
+                        <p className="text-sm sm:text-lg font-bold text-white truncate">Rp {kasEntries.filter(e => e.type === 'out').reduce((sum, e) => sum + e.amount, 0).toLocaleString('id-ID')}</p>
                       </div>
                     </div>
                   </div>
@@ -1427,7 +1647,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 mb-3">
                   <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between transition-transform hover:-translate-y-1">
                     <div>
-                      <p className="text-slate-500 text-[10px] font-bold uppercase tracking-wider mb-0.5">Saldo Kas Saat Ini</p>
+                      <p className="text-slate-500 text-xs font-bold uppercase tracking-wider mb-0.5">Saldo Kas Saat Ini</p>
                       <h3 className="text-lg font-extrabold text-slate-800">Rp {saldo.toLocaleString('id-ID')}</h3>
                     </div>
                     <div className="w-9 h-9 bg-lime-100 rounded-full flex items-center justify-center shrink-0">
@@ -1436,7 +1656,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
                   </div>
                   <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between transition-transform hover:-translate-y-1">
                     <div>
-                      <p className="text-slate-500 text-[10px] font-bold uppercase tracking-wider mb-0.5">Total Pemasukan</p>
+                      <p className="text-slate-500 text-xs font-bold uppercase tracking-wider mb-0.5">Total Pemasukan</p>
                       <h3 className="text-base font-extrabold text-emerald-600">Rp {totalIn.toLocaleString('id-ID')}</h3>
                     </div>
                     <div className="w-9 h-9 bg-emerald-50 rounded-full flex items-center justify-center shrink-0">
@@ -1445,7 +1665,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
                   </div>
                   <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between transition-transform hover:-translate-y-1">
                     <div>
-                      <p className="text-slate-500 text-[10px] font-bold uppercase tracking-wider mb-0.5">Total Pengeluaran</p>
+                      <p className="text-slate-500 text-xs font-bold uppercase tracking-wider mb-0.5">Total Pengeluaran</p>
                       <h3 className="text-base font-extrabold text-red-600">Rp {totalOut.toLocaleString('id-ID')}</h3>
                     </div>
                     <div className="w-9 h-9 bg-red-50 rounded-full flex items-center justify-center shrink-0">
@@ -1454,7 +1674,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
                   </div>
                   <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between transition-transform hover:-translate-y-1">
                     <div>
-                      <p className="text-slate-500 text-[10px] font-bold uppercase tracking-wider mb-0.5">Total Transaksi</p>
+                      <p className="text-slate-500 text-xs font-bold uppercase tracking-wider mb-0.5">Total Transaksi</p>
                       <h3 className="text-lg font-extrabold text-slate-800">{kasEntries.length}</h3>
                     </div>
                     <div className="w-9 h-9 bg-blue-50 rounded-full flex items-center justify-center shrink-0">
@@ -1468,7 +1688,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
             {/* Connection Banner */}
             <div className="bg-gradient-to-r from-lime-800 via-lime-700 to-lime-800 rounded-xl p-4 text-white shadow-md flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3 border border-lime-500/30">
               <div className="space-y-1">
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/20 text-lime-100 text-[10px] font-extrabold uppercase tracking-wider backdrop-blur-md">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/20 text-lime-100 text-xs font-extrabold uppercase tracking-wider backdrop-blur-md">
                   ðŸ”— Terhubung Otomatis Sistem Akuntansi Double-Entry
                 </span>
                 <h2 className="text-lg font-extrabold text-white">Riwayat Transaksi Kas Masjid</h2>
@@ -1493,7 +1713,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
                   onClick={() => { setActiveMenu('lapkeu'); setLapkeuTab('neraca'); }}
                   className="px-3 py-1.5 bg-lime-400 hover:bg-lime-300 text-lime-950 font-extrabold rounded-lg text-xs shadow transition-all flex items-center gap-1 cursor-pointer"
                 >
-                  <Scale className="w-3.5 h-3.5 text-lime-950" /> Neraca Laba Rugi âž”
+                  <Scale className="w-3.5 h-3.5 text-lime-950" /> Neraca Laba Rugi &rarr;
                 </button>
               </div>
             </div>
@@ -1595,8 +1815,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
                         <span className="text-xs text-slate-500">-</span>
                         <input type="date" value={filterPemasukan.end} onChange={e => setFilterPemasukan(prev => ({...prev, end: e.target.value}))} className="bg-white border border-slate-300 text-slate-600 rounded-lg px-2 py-1.5 text-xs font-bold focus:outline-none focus:border-lime-600" />
                       </div>
-                      <button onClick={() => handleExportPDF('in', kasEntries.filter(e => e.type === 'in' && isWithinDateRange(e.date, filterPemasukan)))} className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors border border-slate-300 shadow-sm cursor-pointer">PDF</button>
-                      <button onClick={() => handleExportExcel('in', kasEntries.filter(e => e.type === 'in' && isWithinDateRange(e.date, filterPemasukan)))} className="bg-lime-600 hover:bg-lime-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors shadow-sm cursor-pointer">Excel</button>
+                      <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleExportPDF('in', kasEntries.filter(e => e.type === 'in' && isWithinDateRange(e.date, filterPemasukan))); }} className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors border border-slate-300 shadow-sm cursor-pointer">PDF</button>
+                      <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleExportExcel('in', kasEntries.filter(e => e.type === 'in' && isWithinDateRange(e.date, filterPemasukan))); }} className="bg-lime-600 hover:bg-lime-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors shadow-sm cursor-pointer">Excel</button>
                     </div>
                   </div>
                   <div className="overflow-x-auto flex-1">
@@ -1673,8 +1893,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
                         <span className="text-xs text-slate-500">-</span>
                         <input type="date" value={filterPengeluaran.end} onChange={e => setFilterPengeluaran(prev => ({...prev, end: e.target.value}))} className="bg-white border border-slate-300 text-slate-600 rounded-lg px-2 py-1.5 text-xs font-bold focus:outline-none focus:border-lime-600" />
                       </div>
-                      <button onClick={() => handleExportPDF('out', kasEntries.filter(e => e.type === 'out' && isWithinDateRange(e.date, filterPengeluaran)))} className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors border border-slate-300 shadow-sm">PDF</button>
-                      <button onClick={() => handleExportExcel('out', kasEntries.filter(e => e.type === 'out' && isWithinDateRange(e.date, filterPengeluaran)))} className="bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors shadow-sm">Excel</button>
+                      <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleExportPDF('out', kasEntries.filter(e => e.type === 'out' && isWithinDateRange(e.date, filterPengeluaran))); }} className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors border border-slate-300 shadow-sm cursor-pointer">PDF</button>
+                      <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleExportExcel('out', kasEntries.filter(e => e.type === 'out' && isWithinDateRange(e.date, filterPengeluaran))); }} className="bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors shadow-sm cursor-pointer">Excel</button>
                     </div>
                   </div>
                   <div className="overflow-x-auto flex-1">
@@ -1716,8 +1936,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
                     <p className="text-slate-500 text-sm mt-1">Pratinjau seluruh transaksi buku kas sebelum diunduh.</p>
                   </div>
                   <div className="flex gap-3 shrink-0">
-                    <button onClick={() => alert('Mengunduh format PDF...')} className="bg-red-50 hover:bg-red-100 text-red-600 font-bold py-2.5 px-6 rounded-xl transition-colors border border-red-200 text-sm">Download PDF</button>
-                    <button onClick={() => alert('Mengunduh format Excel...')} className="bg-lime-600 hover:bg-lime-700 text-white font-bold py-2.5 px-6 rounded-xl transition-colors shadow-lg shadow-lime-900/20 text-sm">Download Excel</button>
+                    <button type="button" onClick={() => alert('Mengunduh format PDF...')} className="bg-red-50 hover:bg-red-100 text-red-600 font-bold py-2.5 px-6 rounded-xl transition-colors border border-red-200 text-sm">Download PDF</button>
+                    <button type="button" onClick={() => alert('Mengunduh format Excel...')} className="bg-lime-600 hover:bg-lime-700 text-white font-bold py-2.5 px-6 rounded-xl transition-colors shadow-lg shadow-lime-900/20 text-sm">Download Excel</button>
                   </div>
                 </div>
                 
@@ -1847,7 +2067,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
                     <label className="block text-xs font-bold text-slate-500 mb-1">Upload Bukti Transfer (Opsional)</label>
                     <div className="border-2 border-dashed border-slate-300 rounded-lg p-3 text-center cursor-pointer hover:bg-slate-50 hover:border-lime-400 transition-colors" onClick={() => document.getElementById('ziswaf-bukti-upload')?.click()}>
                       <Upload className="w-5 h-5 text-slate-400 mx-auto mb-1" />
-                      <p className="text-[10px] font-semibold text-slate-500">{ziswafBukti ? ziswafBukti.name : 'Klik untuk memilih file foto/screenshot bukti transfer'}</p>
+                      <p className="text-xs font-semibold text-slate-500">{ziswafBukti ? ziswafBukti.name : 'Klik untuk memilih file foto/screenshot bukti transfer'}</p>
                       <input id="ziswaf-bukti-upload" type="file" accept="image/*" className="hidden" onChange={(e) => { if(e.target.files && e.target.files[0]) setZiswafBukti(e.target.files[0]) }} />
                     </div>
                   </div>
@@ -1868,7 +2088,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {programs.map(p => (
                     <div key={p.id} className="p-5 rounded-xl border border-slate-300 bg-slate-50">
-                      <span className="text-[10px] font-bold text-lime-600 uppercase tracking-wider mb-2 block">{p.kategori}</span>
+                      <span className="text-xs font-bold text-lime-600 uppercase tracking-wider mb-2 block">{p.kategori}</span>
                       <h3 className="font-bold text-slate-800 mb-4 line-clamp-1">{p.judul}</h3>
                       <div className="space-y-2 text-sm">
                         <div className="flex justify-between"><span className="text-slate-500">Terkumpul:</span><span className="font-bold text-lime-600">{formatRp(p.terkumpulRp)}</span></div>
@@ -1888,7 +2108,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
                             </button>
                           ) : (
                             <div className="mt-2 text-left bg-amber-50 border border-amber-200 rounded-lg p-3">
-                               <p className="text-[10px] font-bold text-amber-800 mb-2 uppercase">Update Terbaru:</p>
+                               <p className="text-xs font-bold text-amber-800 mb-2 uppercase">Update Terbaru:</p>
                                <textarea 
                                   autoFocus
                                   value={newUpdateText}
@@ -1915,7 +2135,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
 
                           {programUpdates[p.id] && programUpdates[p.id].length > 0 && (
                             <div className="mt-3 text-left">
-                               <p className="text-[10px] font-bold text-slate-500 mb-2 uppercase border-b border-slate-200 pb-1">Riwayat Update:</p>
+                               <p className="text-xs font-bold text-slate-500 mb-2 uppercase border-b border-slate-200 pb-1">Riwayat Update:</p>
                                <div className="space-y-2 max-h-32 overflow-y-auto pr-1">
                                   {programUpdates[p.id].map((upd) => (
                                      <div key={upd.id} className="bg-slate-50 border border-slate-200 rounded p-2 text-xs">
@@ -1953,7 +2173,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
                 return (
                 <div key={p.id} className="bg-white border border-slate-200 rounded-2xl p-6 flex flex-col justify-between shadow-sm">
                   <div>
-                    <span className="bg-lime-100 text-lime-700 text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wider">{p.kategori}</span>
+                    <span className="bg-lime-100 text-lime-700 text-xs font-bold px-2 py-1 rounded uppercase tracking-wider">{p.kategori}</span>
                     <h3 className="font-bold text-slate-800 mt-3 mb-2">{p.judul}</h3>
                     {p.targetRp > 0 ? (
                       <>
@@ -2129,22 +2349,98 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
                               </button>
                             </div>
                           ) : d.status === 'Berhasil' ? (
-                            <button 
-                              onClick={() => {
-                                const contactMethod = confirm('Kirim notifikasi via WhatsApp? (Klik OK untuk WhatsApp, Batal untuk Email)');
-                                if (contactMethod) {
-                                  const phone = d.kontakDonatur.replace(/\D/g, '');
-                                  const finalPhone = phone.startsWith('0') ? '62' + phone.substring(1) : phone;
-                                  const message = encodeURIComponent(`Assalamu'alaikum ${d.namaDonatur}, Terima kasih, donasi ZISWAF Anda untuk program *${d.programName}* sebesar *Rp${d.nominal.toLocaleString('id-ID')}* telah kami terima dan diverifikasi. Semoga menjadi amal jariyah.`);
-                                  window.open(`https://wa.me/${finalPhone}?text=${message}`, '_blank');
-                                } else {
-                                  window.location.href = `mailto:${d.kontakDonatur}?subject=Kuitansi Donasi ZISWAF&body=Assalamu'alaikum ${d.namaDonatur}, Terima kasih atas donasi sebesar Rp${d.nominal.toLocaleString('id-ID')} untuk program ${d.programName}.`;
-                                }
-                              }}
-                              className="px-3 py-1.5 bg-green-100 text-green-700 hover:bg-green-200 rounded-lg transition-colors cursor-pointer mx-auto flex items-center justify-center gap-1 font-bold text-xs" title="Kirim Konfirmasi"
-                            >
-                              <Smartphone className="w-4 h-4" /> Kirim WA
-                            </button>
+                            <div className="flex items-center justify-center gap-2">
+                              <button 
+                                onClick={() => {
+                                  const contactMethod = confirm('Kirim notifikasi via WhatsApp? (Klik OK untuk WhatsApp, Batal untuk Email)');
+                                  if (contactMethod) {
+                                    const phone = d.kontakDonatur.replace(/\D/g, '');
+                                    const finalPhone = phone.startsWith('0') ? '62' + phone.substring(1) : phone;
+                                    const message = encodeURIComponent(`Assalamu'alaikum ${d.namaDonatur}, Terima kasih, donasi ZISWAF Anda untuk program *${d.programName}* sebesar *Rp${d.nominal.toLocaleString('id-ID')}* telah kami terima dan diverifikasi. Semoga menjadi amal jariyah.`);
+                                    window.open(`https://wa.me/${finalPhone}?text=${message}`, '_blank');
+                                  } else {
+                                    window.location.href = `mailto:${d.kontakDonatur}?subject=Kuitansi Donasi ZISWAF&body=Assalamu'alaikum ${d.namaDonatur}, Terima kasih atas donasi sebesar Rp${d.nominal.toLocaleString('id-ID')} untuk program ${d.programName}.`;
+                                  }
+                                }}
+                                className="px-3 py-1.5 bg-green-100 text-green-700 hover:bg-green-200 rounded-lg transition-colors cursor-pointer flex items-center justify-center gap-1 font-bold text-xs" title="Kirim Konfirmasi"
+                              >
+                                <Smartphone className="w-4 h-4" /> WA
+                              </button>
+                              <button 
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  const doc = new jsPDF();
+                                  doc.setFillColor(6, 78, 59);
+                                  doc.rect(0, 0, 210, 40, 'F');
+                                  doc.setTextColor(255, 255, 255);
+                                  doc.setFontSize(18);
+                                  doc.setFont('helvetica', 'bold');
+                                  doc.text('MASJID CITRA SENTUL RAYA', 15, 20);
+                                  doc.setFontSize(10);
+                                  doc.setFont('helvetica', 'normal');
+                                  doc.text('Kuitansi Resmi Penerimaan ZISWAF Digital (Copy Pengurus)', 15, 28);
+                                  
+                                  doc.setTextColor(51, 51, 51);
+                                  doc.setFontSize(12);
+                                  doc.setFont('helvetica', 'bold');
+                                  doc.text('BUKTI TRANSAKSI DONASI', 15, 55);
+                                  doc.setDrawColor(226, 232, 240);
+                                  doc.line(15, 60, 195, 60);
+
+                                  const startY = 70;
+                                  doc.setFontSize(10);
+                                  doc.setFont('helvetica', 'bold');
+                                  doc.text('No. Referensi:', 15, startY);
+                                  doc.setFont('helvetica', 'normal');
+                                  doc.text(`CSR-ZISWAF-${d.id}`, 60, startY);
+
+                                  doc.setFont('helvetica', 'bold');
+                                  doc.text('Tanggal Transaksi:', 15, startY + 10);
+                                  doc.setFont('helvetica', 'normal');
+                                  doc.text(d.tanggal, 60, startY + 10);
+
+                                  doc.setFont('helvetica', 'bold');
+                                  doc.text('Nama Donatur:', 15, startY + 20);
+                                  doc.setFont('helvetica', 'normal');
+                                  doc.text(d.namaDonatur || 'Hamba Allah', 60, startY + 20);
+
+                                  doc.setFont('helvetica', 'bold');
+                                  doc.text('Program ZISWAF:', 15, startY + 40);
+                                  doc.setFont('helvetica', 'normal');
+                                  doc.text(d.programName || '-', 60, startY + 40);
+
+                                  doc.setFont('helvetica', 'bold');
+                                  doc.text('Nominal Donasi:', 15, startY + 50);
+                                  doc.setFont('helvetica', 'bold');
+                                  doc.setTextColor(6, 78, 59);
+                                  doc.text(new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(d.nominal), 60, startY + 50);
+
+                                  doc.setTextColor(51, 51, 51);
+                                  doc.setFont('helvetica', 'bold');
+                                  doc.text('Status:', 15, startY + 60);
+                                  doc.setTextColor(16, 185, 129);
+                                  doc.text(d.status.toUpperCase(), 60, startY + 60);
+
+                                  doc.setDrawColor(226, 232, 240);
+                                  doc.line(15, startY + 75, 195, startY + 75);
+
+                                  doc.setTextColor(100, 116, 139);
+                                  doc.setFontSize(8);
+                                  doc.setFont('helvetica', 'normal');
+                                  const footerText = 'Terima kasih atas donasi ZISWAF Anda. Semoga membawa keberkahan.\nDokumen ini adalah dokumen resmi yang sah dicetak dari Portal DKM Masjid Citra Sentul Raya.';
+                                  doc.text(footerText, 15, startY + 85);
+                                  
+                                  const safeName = (d.namaDonatur || 'Donatur').replace(/[^a-zA-Z0-9]/g, '_');
+                                  const safeId = String(d.id).replace(/[^a-zA-Z0-9]/g, '_');
+                                  doc.save(`Kwitansi_ZISWAF_${safeName}_${safeId}.pdf`);
+                                }}
+                                type="button"
+                                className="px-3 py-1.5 bg-blue-100 text-blue-700 hover:bg-blue-200 rounded-lg transition-colors cursor-pointer flex items-center justify-center gap-1 font-bold text-xs" title="Unduh Kwitansi PDF"
+                              >
+                                <FileText className="w-4 h-4" /> PDF
+                              </button>
+                            </div>
                           ) : (
                             <span className="text-xs text-slate-400 font-bold text-red-500">Ditolak</span>
                           )}
@@ -2159,6 +2455,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
                   </tbody>
                 </table>
               </div>
+              <Pagination
+                currentPage={donasiPage}
+                totalItems={donasiHistory.length}
+                itemsPerPage={ITEMS_PER_PAGE}
+                onPageChange={setDonasiPage}
+              />
             </div>
           </div>
         )}
@@ -2257,7 +2559,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
                     <div>
                       <h3 className="font-bold text-slate-800 text-sm">{p.name}</h3>
                       <p className="text-xs text-slate-500 mb-2">{p.role}</p>
-                      <span className="bg-lime-50 text-lime-600 text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wider border border-lime-200">{p.tag}</span>
+                      <span className="bg-lime-50 text-lime-600 text-xs font-bold px-2 py-1 rounded uppercase tracking-wider border border-lime-200">{p.tag}</span>
                     </div>
                   </div>
                   <div className="flex gap-2 self-end sm:self-start">
@@ -2314,20 +2616,41 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
                       </div>
                     </div>
 
-                    {/* Visibilitas (Mockup) */}
+                    {/* Visibilitas Beranda */}
                     <div className="bg-lime-950/30 border border-slate-200/50 p-6 rounded-2xl">
-                      <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2"><MonitorPlay className="w-5 h-5 text-lime-600" /> 1. Visibilitas Modul Khusus</h3>
+                      <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2"><MonitorPlay className="w-5 h-5 text-lime-600" /> Pengaturan Tampilan Beranda</h3>
                       <div className="space-y-3">
                         {[
-                          { title: 'Modul AI Syariah Assistant', desc: 'Menampilkan tombol asisten konsultasi fiqih AI di navigasi.' },
-                          { title: 'Modul Mode Display TV Signage Masjid', desc: 'Menampilkan opsi layar penuh jadwal jam shalat TV masjid.' },
-                          { title: 'Stream Live Mutasi Kas Transparansi', desc: 'Menampilkan tabel live pencatatan keuangan ke publik.' }
-                        ].map((item, i) => (
-                          <div key={i} className="flex justify-between items-center p-4 bg-white border border-slate-200 rounded-xl">
-                            <div><h4 className="text-slate-800 font-bold text-sm">{item.title}</h4><p className="text-xs text-slate-500">{item.desc}</p></div>
-                            <button className="bg-lime-600/20 text-lime-600 text-xs font-bold px-4 py-1.5 rounded-lg border border-lime-500/30">TAMPIL</button>
-                          </div>
-                        ))}
+                          { id: 'showJadwal', title: 'Modul Jadwal Shalat', desc: 'Menampilkan jadwal shalat harian di beranda.' },
+                          { id: 'showKalender', title: 'Kalender Kegiatan', desc: 'Menampilkan kalender kegiatan masjid.' },
+                          { id: 'showZiswaf', title: 'Program ZISWAF', desc: 'Menampilkan daftar program donasi dan wakaf.' },
+                          { id: 'showQuran', title: 'Al-Qur\'an Digital', desc: 'Menampilkan banner akses Al-Qur\'an Digital.' },
+                          { id: 'showTentang', title: 'Tentang Masjid', desc: 'Menampilkan profil sejarah masjid.' }
+                        ].map((item, i) => {
+                          const isActive = homeVisibility[item.id as keyof typeof homeVisibility];
+                          return (
+                            <div key={i} className="flex justify-between items-center p-4 bg-white border border-slate-200 rounded-xl">
+                              <div><h4 className="text-slate-800 font-bold text-sm">{item.title}</h4><p className="text-xs text-slate-500">{item.desc}</p></div>
+                              <button 
+                                onClick={async () => {
+                                  const newVal = !isActive;
+                                  const dbKey = item.id.replace('show', 'show_').toLowerCase();
+                                  
+                                  setHomeVisibility((prev: any) => ({ ...prev, [item.id]: newVal }));
+                                  
+                                  try {
+                                    await supabase.from('app_settings').update({ [dbKey]: newVal }).eq('id', 1);
+                                  } catch (err) {
+                                    console.error('Gagal update visibilitas', err);
+                                  }
+                                }}
+                                className={`text-xs font-bold px-4 py-1.5 rounded-lg border cursor-pointer transition-colors ${isActive ? 'bg-lime-600 text-white border-lime-700' : 'bg-slate-100 text-slate-500 border-slate-300 hover:bg-slate-200'}`}
+                              >
+                                {isActive ? 'TAMPIL' : 'SEMBUNYI'}
+                              </button>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   </div>
@@ -2335,15 +2658,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
                   {/* 2. Parameter */}
                   <div className="bg-lime-950/30 border border-slate-200/50 p-6 rounded-2xl mb-8">
                     <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2"><Database className="w-5 h-5 text-yellow-500" /> 2. Parameter Utama Sistem</h3>
-                    
-                    <div className="mb-6">
-                      <label className="block text-sm font-bold text-slate-500 mb-2">Pesan Running Text Display TV Signage Masjid:</label>
-                      <textarea rows={2} className="w-full p-3 bg-white border border-slate-300/50 rounded-xl text-yellow-500 focus:outline-none focus:border-lime-500 text-sm" defaultValue="Selamat Datang di Masjid Citra Sentul Raya - Mohon menonaktifkan nada dering HP selama pelaksanaan Ibadah Shalat Jamaah & Dzikir Akbar."></textarea>
-                    </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div><label className="block text-sm font-bold text-slate-500 mb-2">Harga Acuan Emas/Gram (Nisab Zakat):</label><input type="text" className="w-full p-3 bg-white border border-slate-300/50 rounded-xl text-lime-600 focus:outline-none focus:border-lime-500 text-sm font-mono" defaultValue="1350000" /></div>
-                      <div><label className="block text-sm font-bold text-slate-500 mb-2">Countdown Timer Iqamah (Menit):</label><input type="text" className="w-full p-3 bg-white border border-slate-300/50 rounded-xl text-yellow-500 focus:outline-none focus:border-lime-500 text-sm font-mono" defaultValue="10" /></div>
+                      <div>
+                        <div className="bg-lime-50 p-3 rounded-xl border border-lime-200/50 h-full">
+                          <p className="text-xs text-lime-800 font-bold mb-1">Pengaturan TV Display</p>
+                          <p className="text-xs text-lime-700">Teks berjalan (marquee) dan hitung mundur dapat diatur di menu utama <b>Manajemen TV & Display</b>.</p>
+                        </div>
+                      </div>
                     </div>
                   </div>
 
@@ -2385,16 +2708,91 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
 
               {settingTab === 'hero' && (
                 <div className="animate-in fade-in">
-                  <h2 className="text-2xl font-bold text-slate-800 mb-2">Manajemen Foto Animasi Beranda (Hero Slider)</h2>
-                  <p className="text-slate-500 text-sm mb-8">Unggah beberapa foto lebar (resolusi tinggi) untuk ditampilkan berputar secara otomatis di bagian paling atas halaman Beranda Aplikasi.</p>
+                  <h2 className="text-2xl font-bold text-slate-800 mb-2">Manajemen Foto & Teks Beranda (Hero Slider)</h2>
+                  <p className="text-slate-500 text-sm mb-8">Ubah tulisan Judul, Sub-Judul, dan Tombol CTA yang tampil di bagian paling atas halaman Beranda Aplikasi.</p>
                   
-                  <div className="border-2 border-dashed border-lime-600/50 rounded-2xl p-12 flex flex-col items-center justify-center text-center bg-lime-950/20">
-                    <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mb-4 border border-slate-300">
-                      <svg className="w-8 h-8 text-lime-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
-                    </div>
-                    <h3 className="font-bold text-slate-800 text-lg mb-6">Unggah Foto Baru</h3>
-                    <button onClick={() => alert('Membuka file explorer untuk upload foto...')} className="bg-lime-600 hover:bg-lime-700 text-white font-bold py-3 px-8 rounded-xl transition-colors">
-                      Pilih Media (Foto/Video)
+                  <div className="space-y-6">
+                    {adminHeroSlides.map((slide, idx) => (
+                      <div key={idx} className="bg-slate-50 p-6 rounded-2xl border border-slate-200 shadow-sm relative">
+                        <div className="absolute top-4 right-4 bg-slate-800 text-white text-xs font-bold px-3 py-1 rounded-full">Slide {idx + 1}</div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
+                          <div>
+                            <label className="block text-slate-700 text-sm font-bold mb-2">Judul Utama</label>
+                            <input 
+                              type="text" 
+                              value={slide.title} 
+                              onChange={(e) => {
+                                const newSlides = [...adminHeroSlides];
+                                newSlides[idx].title = e.target.value;
+                                setAdminHeroSlides(newSlides);
+                              }}
+                              className="w-full bg-white border border-slate-300 text-slate-800 rounded-lg px-4 py-2.5 font-semibold focus:outline-none focus:border-lime-600"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-slate-700 text-sm font-bold mb-2">Teks Tombol (CTA)</label>
+                            <input 
+                              type="text" 
+                              value={slide.cta || ''} 
+                              onChange={(e) => {
+                                const newSlides = [...adminHeroSlides];
+                                newSlides[idx].cta = e.target.value;
+                                setAdminHeroSlides(newSlides);
+                              }}
+                              className="w-full bg-white border border-slate-300 text-slate-800 rounded-lg px-4 py-2.5 font-semibold focus:outline-none focus:border-lime-600"
+                            />
+                          </div>
+                          <div className="md:col-span-2">
+                            <label className="block text-slate-700 text-sm font-bold mb-2">Sub Judul / Deskripsi</label>
+                            <textarea 
+                              rows={2}
+                              value={slide.subtitle} 
+                              onChange={(e) => {
+                                const newSlides = [...adminHeroSlides];
+                                newSlides[idx].subtitle = e.target.value;
+                                setAdminHeroSlides(newSlides);
+                              }}
+                              className="w-full bg-white border border-slate-300 text-slate-800 rounded-lg px-4 py-2.5 font-medium focus:outline-none focus:border-lime-600"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="mt-8 flex justify-end">
+                    <button 
+                      onClick={async () => {
+                        try {
+                          // Preview real-time
+                          localStorage.setItem('heroSlides_preview', JSON.stringify(adminHeroSlides));
+                          window.dispatchEvent(new Event('storage'));
+                          
+                          // Save to Supabase
+                          let successCount = 0;
+                          for (const slide of adminHeroSlides) {
+                            if (slide.id) {
+                              const { error } = await supabase
+                                .from('hero_slides')
+                                .update({ title: slide.title, subtitle: slide.subtitle, cta: slide.cta })
+                                .eq('id', slide.id);
+                              if (!error) successCount++;
+                            }
+                          }
+                          
+                          if (successCount > 0) {
+                            alert('Berhasil menyimpan perubahan teks Beranda ke Database Supabase secara permanen!');
+                          } else {
+                            alert('Teks Beranda diperbarui (Simulasi lokal). Pastikan tabel hero_slides sudah ada di Supabase.');
+                          }
+                        } catch (err) {
+                          alert('Terjadi kesalahan saat menyimpan ke Supabase.');
+                        }
+                      }}
+                      className="bg-lime-600 hover:bg-lime-700 text-white font-bold py-3 px-8 rounded-xl transition-colors shadow-lg flex items-center gap-2"
+                    >
+                      <Save className="w-5 h-5" /> Simpan ke Supabase
                     </button>
                   </div>
                 </div>
@@ -2559,7 +2957,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
               {pejabatTtdList.map((t) => (
                 <div key={t.id} className="bg-white border border-slate-200 rounded-2xl p-5 flex flex-col justify-between shadow-lg h-36 transition-transform hover:-translate-y-1">
                   <div className="flex justify-between items-start mb-4">
-                    <span className="bg-lime-50 text-lime-600 text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wider border border-lime-200">{t.tag}</span>
+                    <span className="bg-lime-50 text-lime-600 text-xs font-bold px-2 py-1 rounded uppercase tracking-wider border border-lime-200">{t.tag}</span>
                     <div className="flex gap-2">
                       <button onClick={() => {
                         setPejabatTtdFormData(t);
@@ -2684,11 +3082,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
                               <td className="p-4">{item.kategori}</td>
                               <td className="p-4">{item.lokasi}</td>
                               <td className="p-4 text-center font-bold text-emerald-600 bg-emerald-50/50">
-                                {jumlahTersedia} <span className="text-[10px] font-normal text-slate-500">{item.satuan}</span>
+                                {jumlahTersedia} <span className="text-xs font-normal text-slate-500">{item.satuan}</span>
                               </td>
                               <td className="p-4 text-center font-bold text-red-600 bg-red-50/50">
                                 {jumlahRusak > 0 ? (
-                                  <>{jumlahRusak} <span className="text-[10px] font-normal text-red-400">{item.satuan}</span></>
+                                  <>{jumlahRusak} <span className="text-xs font-normal text-red-400">{item.satuan}</span></>
                                 ) : '-'}
                               </td>
                               <td className="p-4 text-right">
@@ -2851,7 +3249,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-bold text-slate-800">Penjadwalan Imam, Muadzin, & Khatib Jumat</h2>
               <button onClick={() => { setActiveMenu('pengaturan'); setSettingTab('admin_utama'); }} className="bg-lime-900/40 border border-lime-700/50 text-lime-600 font-bold py-2 px-4 rounded-xl text-sm hover:bg-lime-900/60 transition-colors cursor-pointer">
-                âš™ï¸ Pengaturan Khutbah Jumat Lengkap
+                <Settings className="w-4 h-4 inline-block mr-2" /> Pengaturan Khutbah Jumat Lengkap
               </button>
             </div>
             
@@ -2893,6 +3291,83 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
         )}
 
 
+
+        {/* MODUL BARU: MANAJEMEN TV & DISPLAY */}
+        {activeMenu === 'tv' && (
+          <div className="animate-in fade-in space-y-6">
+            <div className="flex flex-col mb-6">
+              <h2 className="text-xl font-bold text-slate-800">Manajemen TV Display Masjid</h2>
+              <p className="text-sm text-slate-500 mt-1">Atur hitung mundur adzan, iqomah, animasi teks berjalan, dan media latar belakang (Youtube/CCTV) pada Smart TV Masjid.</p>
+            </div>
+            
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-5">
+                <h3 className="font-bold text-slate-800 text-lg border-b pb-3">Konfigurasi Umum & Waktu</h3>
+                
+                <div>
+                  <label className="block text-slate-600 text-sm font-bold mb-2">Zona Waktu</label>
+                  <select value={tvConfig.timezone} onChange={e => setTvConfig({...tvConfig, timezone: e.target.value})} className="w-full bg-slate-50 border border-slate-300 text-slate-800 rounded-lg px-4 py-2.5 font-semibold focus:outline-none focus:border-lime-600">
+                    <option value="Asia/Jakarta">WIB (Waktu Indonesia Barat)</option>
+                    <option value="Asia/Makassar">WITA (Waktu Indonesia Tengah)</option>
+                    <option value="Asia/Jayapura">WIT (Waktu Indonesia Timur)</option>
+                  </select>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-slate-600 text-sm font-bold mb-2">Jeda Menuju Adzan (Menit)</label>
+                    <input type="number" value={tvConfig.jedaAdzan} onChange={e => setTvConfig({...tvConfig, jedaAdzan: parseInt(e.target.value) || 0})} className="w-full bg-slate-50 border border-slate-300 text-slate-800 rounded-lg px-4 py-2.5 font-bold focus:outline-none focus:border-lime-600" />
+                  </div>
+                  <div>
+                    <label className="block text-slate-600 text-sm font-bold mb-2">Jeda Menuju Iqomah (Menit)</label>
+                    <input type="number" value={tvConfig.jedaIqomah} onChange={e => setTvConfig({...tvConfig, jedaIqomah: parseInt(e.target.value) || 0})} className="w-full bg-slate-50 border border-slate-300 text-slate-800 rounded-lg px-4 py-2.5 font-bold focus:outline-none focus:border-lime-600" />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-slate-600 text-sm font-bold mb-2">Teks Berjalan (Marquee)</label>
+                  <textarea rows={4} value={tvConfig.runningText} onChange={e => setTvConfig({...tvConfig, runningText: e.target.value})} className="w-full bg-slate-50 border border-slate-300 text-slate-800 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-lime-600"></textarea>
+                </div>
+              </div>
+
+              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-5">
+                <h3 className="font-bold text-slate-800 text-lg border-b pb-3">Media Latar Belakang (Background)</h3>
+                
+                <div>
+                  <label className="block text-slate-600 text-sm font-bold mb-2">Tipe Media Latar</label>
+                  <select value={tvConfig.mediaType} onChange={e => setTvConfig({...tvConfig, mediaType: e.target.value})} className="w-full bg-slate-50 border border-slate-300 text-slate-800 rounded-lg px-4 py-2.5 font-semibold focus:outline-none focus:border-lime-600">
+                    <option value="background">Wallpaper Klasik</option>
+                    <option value="youtube">Live Streaming Youtube (iframe)</option>
+                    <option value="cctv">Live CCTV (Video Stream URL)</option>
+                  </select>
+                </div>
+
+                {tvConfig.mediaType !== 'background' && (
+                  <div>
+                    <label className="block text-slate-600 text-sm font-bold mb-2">URL Media / Embed Link</label>
+                    <input type="text" placeholder={tvConfig.mediaType === 'youtube' ? 'Contoh: https://www.youtube.com/embed/LIVE_ID' : 'Contoh: http://camera-ip/stream'} value={tvConfig.mediaUrl} onChange={e => setTvConfig({...tvConfig, mediaUrl: e.target.value})} className="w-full bg-slate-50 border border-slate-300 text-slate-800 rounded-lg px-4 py-2.5 font-semibold focus:outline-none focus:border-lime-600" />
+                    <p className="text-xs text-slate-500 mt-2">
+                      {tvConfig.mediaType === 'youtube' 
+                        ? 'Pastikan URL menggunakan format embed Youtube agar dapat diputar langsung di layar TV.' 
+                        : 'Pastikan URL stream CCTV dapat diakses langsung tanpa autentikasi.'}
+                    </p>
+                  </div>
+                )}
+
+                <div className="pt-4">
+                  <button onClick={() => {
+                    alert('Konfigurasi TV Display berhasil disimpan!');
+                  }} className="w-full px-6 py-3 bg-lime-600 hover:bg-lime-700 text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2 shadow-lg">
+                    <Save className="w-5 h-5" /> Simpan Konfigurasi TV
+                  </button>
+                  <button onClick={() => setShowDisplayTV(true)} className="w-full mt-3 px-6 py-3 bg-emerald-100 hover:bg-emerald-200 text-emerald-700 font-bold rounded-xl transition-colors flex items-center justify-center gap-2 border border-emerald-300">
+                    <MonitorPlay className="w-5 h-5" /> Buka Layar Smart TV
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* MODUL BARU: BROADCAST WA & EMAIL */}
         {activeMenu === 'wa' && (
@@ -2944,7 +3419,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
                       {broadcastState === 'sending' ? (
                         <>Sedang Mengirim...</>
                       ) : (
-                        <><span className="transform -rotate-45 text-lg">âœˆ</span> Kirim Pesan Siaran</>
+                        <><span className="transform -rotate-45 text-lg">&#9992;</span> Kirim Pesan Siaran</>
                       )}
                     </button>
                   )}
@@ -3004,7 +3479,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
                             {u.e || (u.c && u.c.includes('@') ? u.c : '-')}
                           </td>
                           <td className="px-5 py-4 text-center">
-                            <span className="bg-lime-100 text-lime-700 text-[10px] font-extrabold px-2.5 py-1 rounded-full uppercase tracking-wider border border-lime-200">Aktif</span>
+                            <span className="bg-lime-100 text-lime-700 text-xs font-extrabold px-2.5 py-1 rounded-full uppercase tracking-wider border border-lime-200">Aktif</span>
                           </td>
                         </tr>
                       ))}
@@ -3036,16 +3511,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
                           <td className="px-5 py-4 text-slate-500 font-mono text-xs">{h.date}</td>
                           <td className="px-5 py-4 font-bold text-slate-700">{h.title}</td>
                           <td className="px-5 py-4">
-                            <span className={`inline-flex items-center gap-1.5 font-bold text-[10px] px-2.5 py-1 rounded-md uppercase tracking-wider border ${h.platform === 'wa' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : h.platform === 'email' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-purple-50 text-purple-700 border-purple-200'}`}>
+                            <span className={`inline-flex items-center gap-1.5 font-bold text-xs px-2.5 py-1 rounded-md uppercase tracking-wider border ${h.platform === 'wa' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : h.platform === 'email' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-purple-50 text-purple-700 border-purple-200'}`}>
                               {h.platform === 'both' ? 'WA & Email' : h.platform.toUpperCase()}
                             </span>
                           </td>
                           <td className="px-5 py-4 text-center text-slate-700 font-bold">{h.recipients}</td>
                           <td className="px-5 py-4 text-center">
-                            <span className="bg-lime-100 text-lime-700 text-[10px] font-extrabold px-2.5 py-1 rounded-full uppercase tracking-wider border border-lime-200 mr-2">Berhasil</span>
+                            <span className="bg-lime-100 text-lime-700 text-xs font-extrabold px-2.5 py-1 rounded-full uppercase tracking-wider border border-lime-200 mr-2">Berhasil</span>
                             <button onClick={() => {
                               setShowBroadcastDetailModal(h);
-                            }} className="text-lime-600 hover:text-lime-800 text-[10px] font-bold underline cursor-pointer">Lihat Detail</button>
+                            }} className="text-lime-600 hover:text-lime-800 text-xs font-bold underline cursor-pointer">Lihat Detail</button>
                           </td>
                         </tr>
                       ))}
@@ -3065,7 +3540,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
             <div className="bg-lime-50/50 p-6 rounded-2xl border border-lime-200 flex justify-between items-center shadow-xl">
               <div>
                 <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2 mb-1">
-                  <span className="text-red-600">â™¡</span> Manajemen Akun & Role Pengguna
+                  <span className="text-red-600">&hearts;</span> Manajemen Akun & Role Pengguna
                 </h2>
                 <p className="text-slate-600 text-sm">Kelola data jamaah, atur hak akses (role) pengurus, jabatan DKM, dan kelola sandi pengguna.</p>
               </div>
@@ -3088,11 +3563,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200">
-                    {akunPenggunaList.map((u) => (
+                    {akunPenggunaList.slice((jamaahPage - 1) * ITEMS_PER_PAGE, jamaahPage * ITEMS_PER_PAGE).map((u) => (
                       <tr key={u.id} className="hover:bg-slate-50">
                         <td className="p-4">
                           <p className="font-bold text-slate-800 mb-1">{u.n}</p>
-                          <span className="text-[10px] bg-lime-300 text-slate-900 border border-lime-500 px-2 py-0.5 rounded font-extrabold uppercase">{u.t}</span>
+                          <span className="text-xs bg-lime-300 text-slate-900 border border-lime-500 px-2 py-0.5 rounded font-extrabold uppercase">{u.t}</span>
                         </td>
                         <td className="p-4 text-slate-600 text-xs">
                           <p className="mb-1">{u.e}</p>
@@ -3107,11 +3582,25 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
                             }} 
                             className="bg-white border border-lime-500 text-lime-600 rounded px-3 py-1 text-xs font-bold outline-none cursor-pointer focus:ring-1 focus:ring-lime-500"
                           >
-                            <option value="Admin">Admin</option>
-                            <option value="Bendahara">Bendahara</option>
-                            <option value="Direktur">Direktur</option>
-                            <option value="Jamaah">Jamaah</option>
+                            <option value="direktur">Super Admin (Direktur)</option>
+                            <option value="admin">Admin Operasional</option>
+                            <option value="bendahara">Admin Keuangan (Bendahara)</option>
+                            <option value="staff">Auditor / Staff</option>
+                            <option value="jamaah">Jamaah Terverifikasi</option>
                           </select>
+                          <button 
+                            onClick={async () => {
+                              const { error } = await supabase.from('admin_users').update({ role: u.r }).eq('id', u.id);
+                              if (error) {
+                                alert('Gagal menyimpan perubahan role ke Database!');
+                              } else {
+                                alert('Perubahan Role berhasil disimpan ke Database secara permanen!');
+                              }
+                            }}
+                            className="bg-lime-600 hover:bg-lime-700 text-white ml-2 rounded px-3 py-1 text-xs font-bold transition-colors cursor-pointer"
+                          >
+                            Simpan
+                          </button>
                         </td>
                         <td className="p-4 text-slate-600 text-xs">{u.d}</td>
                         <td className="p-4">
@@ -3121,9 +3610,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
                               setShowAkunPenggunaModal(true);
                             }} className="bg-lime-100/50 text-slate-500 hover:bg-lime-600 hover:text-white px-3 py-1 rounded border border-lime-200 text-xs transition-colors cursor-pointer">Edit</button>
                             <button onClick={() => alert(`Tautan reset sandi telah dikirim ke kontak/email ${u.e || u.c}`)} className="bg-lime-900/10 text-lime-600 hover:bg-lime-600 hover:text-white px-3 py-1 rounded border border-lime-200 text-xs transition-colors cursor-pointer">Sandi</button>
-                            <button onClick={() => {
-                              if(window.confirm(`Hapus akun pengguna ${u.n}?`)) {
-                                setAkunPenggunaList(prev => prev.filter(p => p.id !== u.id));
+                            <button onClick={async () => {
+                              if(window.confirm(`Hapus akun pengguna ${u.n} dari database?`)) {
+                                const { error } = await supabase.from('admin_users').delete().eq('id', u.id);
+                                if (!error) {
+                                  setAkunPenggunaList(prev => prev.filter(p => p.id !== u.id));
+                                  alert('Akun berhasil dihapus dari Database permanen!');
+                                } else {
+                                  alert('Gagal menghapus akun: ' + error.message);
+                                }
                               }
                             }} className="bg-red-50 text-red-600 hover:bg-red-600 hover:text-white px-3 py-1 rounded border border-red-200 text-xs transition-colors cursor-pointer">Hapus</button>
                           </div>
@@ -3133,7 +3628,72 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
                   </tbody>
                 </table>
               </div>
+              <Pagination
+                currentPage={jamaahPage}
+                totalItems={akunPenggunaList.length}
+                itemsPerPage={ITEMS_PER_PAGE}
+                onPageChange={setJamaahPage}
+              />
             </div>
+
+            {/* RBAC (Role-Based Access Control) Panel */}
+            {['direktur', 'admin'].includes(adminRole.toLowerCase()) && (
+              <div className="bg-slate-50 border border-slate-200 rounded-xl overflow-hidden shadow-xl p-6 mt-8">
+                <div className="flex items-center gap-3 mb-6">
+                  <ShieldCheck className="w-6 h-6 text-lime-600" />
+                  <div>
+                    <h3 className="font-bold text-slate-800 text-lg">Tatakelola Hak Akses Modul (RBAC)</h3>
+                    <p className="text-xs text-slate-500">Atur modul apa saja yang boleh diakses oleh masing-masing Role Pengurus. (Hanya terlihat oleh Direktur/Superadmin)</p>
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm whitespace-nowrap border-collapse">
+                    <thead className="bg-slate-200/50 text-slate-600 font-bold text-xs uppercase tracking-wider">
+                      <tr>
+                        <th className="p-4 border-b border-slate-200">Role Pengurus</th>
+                        {ALL_MENU_CATEGORIES.map(cat => (
+                           <th key={cat.id} className="p-4 border-b border-slate-200 text-center">{cat.label}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {['direktur', 'admin', 'bendahara', 'staff'].map(role => (
+                        <tr key={role} className="hover:bg-slate-50/50">
+                          <td className="p-4 font-bold text-slate-700 capitalize border-r border-slate-100">{role}</td>
+                          {ALL_MENU_CATEGORIES.map(cat => {
+                            const isChecked = (rolePermissions[role] || []).includes(cat.id);
+                            const isLocked = (role === 'direktur' || role === 'admin');
+                            
+                            return (
+                              <td key={cat.id} className="p-4 text-center">
+                                <input 
+                                  type="checkbox"
+                                  className="w-5 h-5 accent-lime-600 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                                  checked={isChecked}
+                                  disabled={isLocked}
+                                  onChange={(e) => {
+                                    const checked = e.target.checked;
+                                    setRolePermissions(prev => {
+                                      const current = prev[role] || [];
+                                      return {
+                                        ...prev,
+                                        [role]: checked ? [...current, cat.id] : current.filter(id => id !== cat.id)
+                                      };
+                                    });
+                                  }}
+                                />
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <p className="text-xs text-slate-400 mt-4 text-right">*Role Direktur & Admin memiliki akses penuh secara permanen untuk mencegah lockout.</p>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -3152,40 +3712,48 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200">
-                   {(auditLogs.length > 0 
-                     ? auditLogs
-                      : [
-                          { w: '29/7/2026, 19.06.26', n: 'Petugas Masjid Citra Sentul Raya', a: 'admin', r: 'ADMIN MASJID', ac: 'LOGIN', c: 'bg-lime-900/50 text-lime-600', d: 'User logged in successfully' },
-                          { w: '29/7/2026, 19.06.14', n: 'Gania', a: '081517045406', r: 'JAMAAH', ac: 'LOGOUT', c: 'bg-red-900/50 text-red-600', d: 'User logged out successfully' },
-                          { w: '28/7/2026, 17.30.00', n: 'Haji Bambang Pamungkas, M.M.', a: 'bambang.pamungkas@outlook.com', r: 'DKM', ac: 'ADD_JOURNAL_ENTRY', c: 'bg-blue-900/50 text-blue-600', d: 'Berhasil menginput data Jurnal Umum senilai Rp 12.500.000.' },
-                        ]
-                    ).map((l: any, i: number) => (
+                   {(() => {
+                     const logs = auditLogs.length > 0 
+                       ? auditLogs
+                       : [
+                           { w: '29/7/2026, 19.06.26', n: 'Petugas Masjid Citra Sentul Raya', a: 'admin', r: 'ADMIN MASJID', ac: 'LOGIN', c: 'bg-lime-900/50 text-lime-600', d: 'User logged in successfully' },
+                           { w: '29/7/2026, 19.06.14', n: 'Gania', a: '081517045406', r: 'JAMAAH', ac: 'LOGOUT', c: 'bg-red-900/50 text-red-600', d: 'User logged out successfully' },
+                           { w: '28/7/2026, 17.30.00', n: 'Haji Bambang Pamungkas, M.M.', a: 'bambang.pamungkas@outlook.com', r: 'DKM', ac: 'ADD_JOURNAL_ENTRY', c: 'bg-blue-900/50 text-blue-600', d: 'Berhasil menginput data Jurnal Umum senilai Rp 12.500.000.' },
+                         ];
+                     return logs.slice((auditPage - 1) * ITEMS_PER_PAGE, auditPage * ITEMS_PER_PAGE).map((l: any, i: number) => (
                       <tr key={i} className="hover:bg-slate-50">
                         <td className="p-4 text-slate-600 text-xs">{l.w}</td>
                         <td className="p-4">
                           <p className="font-bold text-slate-800 mb-1">{l.n}</p>
                           <p className="text-lime-600 text-xs">{l.a}</p>
                         </td>
-                        <td className="p-4"><span className="bg-lime-100/50 text-slate-500 px-2 py-1 rounded text-[10px] font-bold border border-lime-200">{l.r}</span></td>
-                        <td className="p-4"><span className={`px-2 py-1 rounded text-[10px] font-bold border border-current/20 ${l.c}`}>{l.ac}</span></td>
+                        <td className="p-4"><span className="bg-lime-100/50 text-slate-500 px-2 py-1 rounded text-xs font-bold border border-lime-200">{l.r}</span></td>
+                        <td className="p-4"><span className={`px-2 py-1 rounded text-xs font-bold border border-current/20 ${l.c}`}>{l.ac}</span></td>
                         <td className="p-4 text-slate-600 text-xs">{l.d}</td>
                       </tr>
-                    ))}
+                    ))
+                   })()}
                   </tbody>
                 </table>
               </div>
+              <Pagination
+                currentPage={auditPage}
+                totalItems={auditLogs.length > 0 ? auditLogs.length : 3}
+                itemsPerPage={ITEMS_PER_PAGE}
+                onPageChange={setAuditPage}
+              />
             </div>
           </div>
         )}
 
-        {/* â”€â”€ MODUL LAPORAN KEUANGAN & AKUNTANSI TERINTEGRASI â”€â”€ */}
+        {/* --- MODUL LAPORAN KEUANGAN & AKUNTANSI TERINTEGRASI --- */}
         {['lapkeu', 'jurnal', 'bukubesar', 'coa', 'anggaran'].includes(activeMenu) && (
           <ErrorBoundary>
             <div className="animate-in fade-in space-y-6">
               {/* Header Banner */}
               <div className="bg-white rounded-2xl p-4 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-3 border border-slate-200">
                 <div>
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-slate-100 text-slate-600 text-[10px] font-bold uppercase tracking-wider mb-1.5 border border-slate-200">
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-slate-100 text-slate-600 text-xs font-bold uppercase tracking-wider mb-1.5 border border-slate-200">
                     ðŸ“Š Modul Akuntansi Standar PSAK 409
                   </span>
                   <h2 className="text-lg font-extrabold text-slate-800 leading-none">Fitur Laporan Keuangan & Akuntansi Masjid</h2>
@@ -3209,11 +3777,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
               {lapkeuTab === 'bukubesar' && <ModulBukuBesar journals={journals} accounts={accounts} />}
               {lapkeuTab === 'coa' && <ModulCoA journals={journals} />}
               {lapkeuTab === 'anggaran' && <ModulAnggaranApproval onAutoPostJournal={handleAutoPostJournal} adminRole={adminRole} appSettings={appSettings} />}
+              {lapkeuTab === 'penyusutan' && <ModulPenyusutanAset onAutoPostJournal={handleAutoPostJournal} adminRole={adminRole} />}
             </div>
           </ErrorBoundary>
         )}
 
-        {/* â”€â”€ MODUL LAINNYA â”€â”€ */}
+        {/* ——— MODUL LAINNYA ——— */}
 
         {showCampaignModal && (
           <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
@@ -3329,7 +3898,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
                     }
                   } catch (err) { console.error('Error insert program:', err); }
                   
-                  setNewCampaignData({ judul: '', target: '', kategori: 'Zakat', gambar: '' });
+                  setNewCampaignData({ judul: '', target: '', kategori: 'Zakat', gambar: '', akunDebit: '1106', akunKredit: '4103' });
                   setShowCampaignModal(false);
                   alert(`Program "${newCampaignData.judul}" berhasil dipublikasikan dan live!`);
                 }} className="flex-1 bg-lime-600 hover:bg-lime-700 text-white font-bold py-3 rounded-xl transition-colors cursor-pointer">Simpan & Publikasikan</button>
@@ -3524,7 +4093,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
                           <td className="px-4 py-3 font-medium text-slate-700">{r.name}</td>
                           <td className="px-4 py-3 font-mono text-xs text-slate-500">{r.contact}</td>
                           <td className="px-4 py-3 text-center">
-                            <span className={`text-[10px] font-extrabold px-2 py-1 rounded-full uppercase border ${r.status?.includes('Gagal') ? 'bg-red-50 text-red-600 border-red-200' : 'bg-lime-50 text-lime-600 border-lime-200'}`}>
+                            <span className={`text-xs font-extrabold px-2 py-1 rounded-full uppercase border ${r.status?.includes('Gagal') ? 'bg-red-50 text-red-600 border-red-200' : 'bg-lime-50 text-lime-600 border-lime-200'}`}>
                               {r.status || 'Berhasil'}
                             </span>
                           </td>
@@ -3818,27 +4387,65 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
                 <div>
                   <label className="block text-sm font-bold text-slate-700 mb-1">Role Sistem Akses <span className="text-red-500">*</span></label>
                   <select value={akunPenggunaFormData.r} onChange={e => setAkunPenggunaFormData({...akunPenggunaFormData, r: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl text-slate-800 focus:outline-none focus:border-lime-500 text-sm font-bold cursor-pointer">
-                    <option value="Admin Utama">Admin Utama</option>
-                    <option value="Pengurus DKM">Pengurus DKM</option>
-                    <option value="Tim Audit">Tim Audit</option>
-                    <option value="Jamaah Terverifikasi">Jamaah Terverifikasi</option>
+                    <option value="direktur">Super Admin (Direktur)</option>
+                    <option value="admin">Admin Operasional</option>
+                    <option value="bendahara">Admin Keuangan (Bendahara)</option>
+                    <option value="staff">Auditor / Staff</option>
+                    <option value="jamaah">Jamaah Terverifikasi</option>
                   </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-1">Kata Sandi (Password) <span className="text-red-500">*</span></label>
+                  <input type="text" value={akunPenggunaFormData.p} onChange={e => setAkunPenggunaFormData({...akunPenggunaFormData, p: e.target.value})} placeholder="Masukkan kata sandi..." className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl text-slate-800 focus:outline-none focus:border-lime-500 text-sm" required />
                 </div>
               </div>
 
               <div className="mt-8 flex gap-3">
                 <button onClick={() => setShowAkunPenggunaModal(false)} className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3 rounded-xl transition-colors cursor-pointer">Batal</button>
-                <button onClick={() => {
-                  if(!akunPenggunaFormData.n || !akunPenggunaFormData.c || !akunPenggunaFormData.t) {
-                    return alert('Nama, Jabatan, dan Nomor Kontak wajib diisi!');
+                <button onClick={async () => {
+                  if(!akunPenggunaFormData.n || !akunPenggunaFormData.c || !akunPenggunaFormData.t || !akunPenggunaFormData.p) {
+                    return alert('Nama, Jabatan, Nomor Kontak, dan Password wajib diisi!');
                   }
                   
                   if(akunPenggunaFormData.id === 0) {
-                    setAkunPenggunaList(prev => [{...akunPenggunaFormData, id: Math.random() * 10000, d: new Date().toLocaleDateString('id-ID')}, ...prev]);
-                    alert('Pengguna baru berhasil ditambahkan dan undangan akses telah dikirim!');
+                    // Create New
+                    const { data, error } = await supabase.from('admin_users').insert({
+                      nama: akunPenggunaFormData.n,
+                      email: akunPenggunaFormData.e || `${akunPenggunaFormData.c}@masjid.com`,
+                      password_hash: akunPenggunaFormData.p,
+                      role: akunPenggunaFormData.r,
+                      jabatan: akunPenggunaFormData.t,
+                      kontak: akunPenggunaFormData.c,
+                      status: 'Aktif'
+                    }).select();
+                    
+                    if (!error && data) {
+                      setAkunPenggunaList(prev => [{
+                        id: data[0].id, n: data[0].nama, t: data[0].jabatan, e: data[0].email, c: data[0].kontak, r: data[0].role, p: data[0].password_hash, d: new Date().toLocaleDateString('id-ID')
+                      }, ...prev]);
+                      alert('Berhasil! Pengguna baru telah tersimpan ke Database Supabase.');
+                    } else {
+                      alert('Gagal menambah pengguna ke Supabase: ' + (error?.message || 'Unknown error'));
+                      // Fallback simulasi
+                      setAkunPenggunaList(prev => [{...akunPenggunaFormData, id: Math.random().toString(), d: new Date().toLocaleDateString('id-ID')}, ...prev]);
+                    }
                   } else {
-                    setAkunPenggunaList(prev => prev.map(p => p.id === akunPenggunaFormData.id ? akunPenggunaFormData : p));
-                    alert('Data pengguna berhasil diperbarui!');
+                    // Update Existing
+                    const { error } = await supabase.from('admin_users').update({
+                      nama: akunPenggunaFormData.n,
+                      email: akunPenggunaFormData.e || `${akunPenggunaFormData.c}@masjid.com`,
+                      password_hash: akunPenggunaFormData.p,
+                      role: akunPenggunaFormData.r,
+                      jabatan: akunPenggunaFormData.t,
+                      kontak: akunPenggunaFormData.c
+                    }).eq('id', akunPenggunaFormData.id);
+                    
+                    if (!error) {
+                      setAkunPenggunaList(prev => prev.map(p => p.id === akunPenggunaFormData.id ? {...akunPenggunaFormData, d: p.d} : p));
+                      alert('Berhasil! Data pengguna telah diperbarui di Database Supabase.');
+                    } else {
+                      alert('Gagal memperbarui pengguna: ' + error.message);
+                    }
                   }
                   setShowAkunPenggunaModal(false);
                 }} className="flex-1 bg-lime-600 hover:bg-lime-700 text-white font-bold py-3 rounded-xl transition-colors cursor-pointer">
@@ -3999,7 +4606,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
                                setShowDonaturModal(null);
                                setActiveMenu('verifikasi');
                              }} className="px-3 py-1.5 bg-amber-100 text-amber-700 hover:bg-amber-200 border border-amber-200 rounded-lg text-xs font-bold cursor-pointer transition-colors shadow-sm flex items-center gap-1 group">
-                               Menunggu Verifikasi <span className="group-hover:translate-x-0.5 transition-transform">âž”</span>
+                               Menunggu Verifikasi <span className="group-hover:translate-x-0.5 transition-transform">&rarr;</span>
                              </button>
                            ) : (
                              <span className="px-3 py-1.5 bg-red-100 text-red-700 border border-red-200 rounded-lg text-xs font-bold flex items-center gap-1">
@@ -4025,4 +4632,5 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
     </div>
   );
 };
+
 

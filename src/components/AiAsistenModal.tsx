@@ -118,7 +118,7 @@ export const AiAsistenModal: React.FC<AiAsistenModalProps> = ({
                 <span>AI Asisten Masjid Citra Sentul</span>
                 <Sparkles className="w-3.5 h-3.5 text-lime-200 animate-pulse" />
               </h3>
-              <span className="text-[10px] text-lime-100 block font-semibold">
+              <span className="text-xs text-lime-100 block font-semibold">
                 Konsultasi Al-Qur'an, Hadits, Fiqih & Informasi DKM
               </span>
             </div>

@@ -57,7 +57,7 @@ export const ECertificateModal: React.FC<ECertificateModalProps> = ({ muwakif, o
               <span className="text-xl sm:text-2xl font-serif text-emerald-900 font-bold tracking-widest">
                 بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ
               </span>
-              <span className="block text-[10px] text-slate-500 uppercase tracking-widest pt-1">
+              <span className="block text-xs text-slate-500 uppercase tracking-widest pt-1">
                 SERTIFIKAT WAKAF PEMBANGUNAN MASJID
               </span>
               <h2 className="text-xl sm:text-2xl font-black text-emerald-900 tracking-tight">
@@ -113,26 +113,26 @@ export const ECertificateModal: React.FC<ECertificateModalProps> = ({ muwakif, o
               <p className="text-[11px] text-slate-600 italic">
                 “Siapa yang membangun masjid karena Allah, maka Allah akan membangunkan baginya rumah di surga.”
               </p>
-              <span className="text-[10px] text-emerald-800 font-bold block mt-0.5">(HR. Bukhari & Muslim)</span>
+              <span className="text-xs text-emerald-800 font-bold block mt-0.5">(HR. Bukhari & Muslim)</span>
             </div>
 
             {/* Signatures & Stamp */}
             <div className="grid grid-cols-2 gap-4 pt-6 text-xs border-t border-slate-200/80">
               <div className="space-y-8">
-                <span className="text-slate-500 block text-[10px]">Ketua Panitia Pembangunan</span>
+                <span className="text-slate-500 block text-xs">Ketua Panitia Pembangunan</span>
                 <div className="font-bold text-slate-900 underline">
                   Pak Leo / Bpk. Grandis
                 </div>
               </div>
               <div className="space-y-8">
-                <span className="text-slate-500 block text-[10px]">Ketua DKM Masjid Citra Sentul</span>
+                <span className="text-slate-500 block text-xs">Ketua DKM Masjid Citra Sentul</span>
                 <div className="font-bold text-slate-900 underline">
                   Pengurus DKM
                 </div>
               </div>
             </div>
 
-            <div className="pt-2 flex items-center justify-center gap-1.5 text-[10px] text-emerald-700 font-semibold">
+            <div className="pt-2 flex items-center justify-center gap-1.5 text-xs text-emerald-700 font-semibold">
               <ShieldCheck className="w-3.5 h-3.5 text-amber-500" />
               <span>Rekening Resmi BSI 7257159102 a.n. Masjid Citra Sentul Raya</span>
             </div>

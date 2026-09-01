@@ -287,7 +287,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                 {mode === 'forgot' || mode === 'reset_step' ? 'Reset Kata Sandi' : 'Portal Login Terpadu'}
                 <Sparkles className="w-3.5 h-3.5 text-lime-300 inline" />
               </h2>
-              <p className="text-[10px] tracking-wider text-lime-100 uppercase font-semibold">Masjid Citra Sentul Raya</p>
+              <p className="text-xs tracking-wider text-lime-100 uppercase font-semibold">Masjid Citra Sentul Raya</p>
             </div>
           </div>
           <button 

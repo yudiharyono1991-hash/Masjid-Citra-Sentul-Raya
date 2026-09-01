@@ -25,7 +25,7 @@ export interface JurnalEntry {
   tanggal: string;
   noBukti: string;
   keterangan: string;
-  sumber: 'Donasi Umum' | 'Donasi Portal Jamaah' | 'Kas Masjid' | 'Anggaran';
+  sumber: 'Donasi Umum' | 'Donasi Portal Jamaah' | 'Kas Masjid' | 'Anggaran' | 'Modul Aset';
   baris: JurnalBaris[];
   status: 'Draft' | 'Posted';
   dibuatOleh: string;

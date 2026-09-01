@@ -91,7 +91,7 @@ export const ModulKajianJamaah: React.FC = () => {
             
             return (
               <div key={k.id} className="bg-white rounded-3xl border-2 border-slate-100 overflow-hidden shadow-sm hover:shadow-xl hover:border-lime-200 transition-all flex flex-col relative group">
-                <div className="absolute top-0 right-0 bg-lime-100 text-lime-700 px-3 py-1 rounded-bl-xl text-[10px] font-black uppercase tracking-wider">
+                <div className="absolute top-0 right-0 bg-lime-100 text-lime-700 px-3 py-1 rounded-bl-xl text-xs font-black uppercase tracking-wider">
                   Tersedia
                 </div>
                 <div className="p-6 border-b border-slate-50 flex-1">

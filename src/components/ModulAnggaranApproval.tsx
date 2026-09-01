@@ -236,7 +236,16 @@ export const ModulAnggaranApproval: React.FC<ModulAnggaranApprovalProps> = ({ on
       status: newPengajuan.status,
       step_aktif: newPengajuan.stepAktif,
       riwayat_approval: newPengajuan.riwayatApproval
-    }]).then();
+    }]).then(({ error }) => {
+      if (!error) {
+        supabase.from('notifications').insert([{
+          user_role: 'direktur',
+          title: 'Permohonan Anggaran Baru',
+          message: `Terdapat pengajuan baru: ${newPengajuan.noPengajuan} sebesar Rp ${newPengajuan.jumlah.toLocaleString('id-ID')}`,
+          is_read: false
+        }]).then();
+      }
+    });
 
     setTab('pengajuan');
     setExpandedId(newPengajuan.id);
@@ -364,7 +373,7 @@ export const ModulAnggaranApproval: React.FC<ModulAnggaranApprovalProps> = ({ on
                           {item.status}
                         </span>
                         {needsActionFromCurrentRole && (
-                          <span className="bg-lime-400 text-lime-950 font-black text-[10px] px-2 py-0.5 rounded-md animate-pulse">
+                          <span className="bg-lime-400 text-lime-950 font-black text-xs px-2 py-0.5 rounded-md animate-pulse">
                             ⚠️ Butuh Persetujuan {currentTestingRole} Anda!
                           </span>
                         )}
@@ -403,7 +412,7 @@ export const ModulAnggaranApproval: React.FC<ModulAnggaranApprovalProps> = ({ on
                             }`}>
                               {step.aksi === 'Disetujui' ? '✓' : step.aksi === 'Ditolak' ? '✗' : idx + 1}
                             </div>
-                            <p className="text-[10px] font-bold text-slate-700 mt-1.5">{step.role}</p>
+                            <p className="text-xs font-bold text-slate-700 mt-1.5">{step.role}</p>
                             <p className={`text-[9px] font-semibold ${
                               step.aksi === 'Disetujui' ? 'text-lime-600' : step.aksi === 'Ditolak' ? 'text-rose-600' : 'text-slate-400'
                             }`}>

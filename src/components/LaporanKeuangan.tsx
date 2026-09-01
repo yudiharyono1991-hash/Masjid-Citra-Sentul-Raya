@@ -159,7 +159,7 @@ export const LaporanKeuangan: React.FC<LaporanKeuanganProps> = ({
                       <span className="text-base font-black text-emerald-800 block">
                         {formatRupiah(m.nominal)}
                       </span>
-                      <span className="text-[10px] text-slate-500 font-medium">
+                      <span className="text-xs text-slate-500 font-medium">
                         {m.paket || 'Wakaf Bebas'}
                       </span>
                     </div>
@@ -171,7 +171,7 @@ export const LaporanKeuangan: React.FC<LaporanKeuanganProps> = ({
                     </p>
                   )}
 
-                  <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1">
+                  <div className="flex items-center justify-between text-xs text-slate-400 pt-1">
                     <span className="flex items-center gap-1 text-emerald-700 font-semibold">
                       <CheckCircle className="w-3 h-3 text-emerald-600" />
                       <span>Terverifikasi Panitia</span>
