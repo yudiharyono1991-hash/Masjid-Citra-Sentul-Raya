@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { toLocalDateString } from '../utils/formatters';
 import { 
   ClipboardList, CheckCircle, Clock, XCircle, ChevronDown, ChevronUp, 
   AlertTriangle, PlusCircle, ShieldCheck, UserCheck, Check, X, FileText 
@@ -113,7 +114,7 @@ export const ModulAnggaranApproval: React.FC<ModulAnggaranApprovalProps> = ({ on
         ...newRiwayat[currentStepIdx],
         aksi: action,
         catatan: approvalNote || (action === 'Disetujui' ? 'Disetujui & diverifikasi' : 'Ditolak'),
-        tanggal: new Date().toISOString().split('T')[0],
+        tanggal: toLocalDateString(),
       };
 
       let newStatus = p.status;
@@ -135,7 +136,7 @@ export const ModulAnggaranApproval: React.FC<ModulAnggaranApprovalProps> = ({ on
           // Auto Post Journal Entry upon Level 3 (Direktur) Final Signoff
           const autoJournal: JurnalEntry = {
             id: `JU-AUTO-${Date.now()}`,
-            tanggal: new Date().toISOString().split('T')[0],
+            tanggal: toLocalDateString(),
             noBukti: `BKK-${p.noPengajuan}`,
             keterangan: `Pencairan Pengeluaran Anggaran: ${p.judul} (Persetujuan Direktur)`,
             sumber: 'Anggaran',
@@ -145,7 +146,7 @@ export const ModulAnggaranApproval: React.FC<ModulAnggaranApprovalProps> = ({ on
             ],
             status: 'Posted',
             dibuatOleh: 'Sistem Approval Direktur',
-            tanggalBuat: new Date().toISOString().split('T')[0],
+            tanggalBuat: toLocalDateString(),
           };
 
           if (onAutoPostJournal) onAutoPostJournal(autoJournal);
@@ -201,7 +202,7 @@ export const ModulAnggaranApproval: React.FC<ModulAnggaranApprovalProps> = ({ on
 
     const newPengajuan: PengajuanPengeluaran = {
       id: `PG-${Date.now()}`,
-      tanggal: new Date().toISOString().split('T')[0],
+      tanggal: toLocalDateString(),
       noPengajuan: `PGJ-2026-07-00${pengajuanList.length + 1}`,
       judul: formJudul,
       keterangan: formKeterangan || formJudul,

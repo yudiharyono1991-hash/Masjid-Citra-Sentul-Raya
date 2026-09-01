@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import { supabase } from '../lib/supabase';
-import { formatRupiah, buildWhatsAppLink, generateUniqueCode } from '../utils/formatters';
+import { formatRupiah, buildWhatsAppLink, generateUniqueCode, toLocalDateString } from '../utils/formatters';
 import { Muwakif } from '../types';
 
 interface WakafFormProps {
@@ -139,7 +139,7 @@ export const WakafForm: React.FC<WakafFormProps> = ({ onAddMuwakif, onShowCertif
       nama: donorName,
       nominal: totalTransfer,
       paket: selectedPaketObj ? selectedPaketObj.nama : 'Wakaf Nominal Bebas',
-      tanggal: new Date().toISOString().split('T')[0],
+      tanggal: toLocalDateString(),
       pesanDoa: pesanDoa.trim() || 'Semoga wakaf ini membawa keberkahan dan pahala yang tak terputus.',
       isHambaAllah,
       isVerified: true,

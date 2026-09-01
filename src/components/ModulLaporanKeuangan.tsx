@@ -30,8 +30,17 @@ export const ModulLaporanKeuangan: React.FC<ModulLaporanKeuanganProps> = ({
 }) => {
   const [tab, setTab] = useState<'neraca' | 'labarugi'>('neraca');
   const [selectedFundFilter, setSelectedFundFilter] = useState<FundCategory>('Semua');
-  const [filterStartDate, setFilterStartDate] = useState('');
-  const [filterEndDate, setFilterEndDate] = useState('');
+  // Auto-set date range: from 1st of current month to today (using local timezone)
+  const toLocalISODate = (d: Date) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  };
+  const todayLocal = new Date();
+  const firstOfMonthLocal = new Date(todayLocal.getFullYear(), todayLocal.getMonth(), 1);
+  const [filterStartDate, setFilterStartDate] = useState(toLocalISODate(firstOfMonthLocal));
+  const [filterEndDate, setFilterEndDate] = useState(toLocalISODate(todayLocal));
 
   const formatRp = (n: number) => {
     return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n || 0);
@@ -43,7 +52,13 @@ export const ModulLaporanKeuangan: React.FC<ModulLaporanKeuanganProps> = ({
            clean === '1101' || clean === '1102' || clean === '1103' || clean === '1106';
   };
 
-  const filteredJournals = journals.filter(j => {
+  const pastJournals = journals.filter(j => {
+    if (!filterStartDate) return false;
+    const jDate = new Date(j.tanggal).getTime();
+    return jDate < new Date(filterStartDate).getTime();
+  });
+
+  const currentJournals = journals.filter(j => {
     if (!filterStartDate && !filterEndDate) return true;
     const jDate = new Date(j.tanggal).getTime();
     if (filterStartDate && jDate < new Date(filterStartDate).getTime()) return false;
@@ -52,7 +67,7 @@ export const ModulLaporanKeuangan: React.FC<ModulLaporanKeuanganProps> = ({
   });
 
   // Compute Live Balance for an account by adding posted journal entries
-  const getLiveBalance = (kode: string, fundFilter: FundCategory = 'Semua') => {
+  const getLiveBalance = (kode: string, fundFilter: FundCategory = 'Semua', calcType: 'current' | 'past' | 'all' = 'current') => {
     const akun = accounts.find(a => a.kode === kode);
     if (!akun) return 0;
     
@@ -66,17 +81,21 @@ export const ModulLaporanKeuangan: React.FC<ModulLaporanKeuanganProps> = ({
     }
 
     let balance = 0;
-    if (fundFilter === 'Semua' || fundFilter === 'Komparatif' || fundFilter === 'Multi') {
-      balance = akun.saldoAwal;
-    } else {
-      if (!isShared && mainCategory === fundFilter) {
+    if (calcType === 'past' || calcType === 'all') {
+      if (fundFilter === 'Semua' || fundFilter === 'Komparatif' || fundFilter === 'Multi') {
         balance = akun.saldoAwal;
-      } else if (isShared && fundFilter === 'Operasional') {
-        balance = akun.saldoAwal;
+      } else {
+        if (!isShared && mainCategory === fundFilter) {
+          balance = akun.saldoAwal;
+        } else if (isShared && fundFilter === 'Operasional') {
+          balance = akun.saldoAwal;
+        }
       }
     }
 
-    filteredJournals.forEach(j => {
+    const jList = calcType === 'past' ? pastJournals : (calcType === 'all' ? [...pastJournals, ...currentJournals] : currentJournals);
+
+    jList.forEach(j => {
       if (j.status === 'Posted') {
         let matchesFund = true;
         if (fundFilter !== 'Semua' && fundFilter !== 'Komparatif' && fundFilter !== 'Multi') {
@@ -109,14 +128,20 @@ export const ModulLaporanKeuangan: React.FC<ModulLaporanKeuanganProps> = ({
   // Helper for fund specific metrics
   const getFundMetrics = (fundCategory: 'Zakat' | 'Infaq' | 'Wakaf' | 'Sodaqoh' | 'Operasional') => {
     const fundAccounts = accounts.filter(a => getAccountFundCategory(a) === fundCategory || isSharedAccount(a.kode));
-    const aktiva = fundAccounts.filter(a => a.jenis === 'Aktiva').reduce((s, a) => s + getLiveBalance(a.kode, fundCategory), 0);
-    const kewajiban = fundAccounts.filter(a => a.jenis === 'Kewajiban').reduce((s, a) => s + getLiveBalance(a.kode, fundCategory), 0);
-    const ekuitas = fundAccounts.filter(a => a.jenis === 'Ekuitas').reduce((s, a) => s + getLiveBalance(a.kode, fundCategory), 0);
-    const pendapatan = fundAccounts.filter(a => a.jenis === 'Pendapatan').reduce((s, a) => s + getLiveBalance(a.kode, fundCategory), 0);
-    const beban = fundAccounts.filter(a => a.jenis === 'Beban').reduce((s, a) => s + getLiveBalance(a.kode, fundCategory), 0);
+    const aktiva = fundAccounts.filter(a => a.jenis === 'Aktiva').reduce((s, a) => s + getLiveBalance(a.kode, fundCategory, 'all'), 0);
+    const kewajiban = fundAccounts.filter(a => a.jenis === 'Kewajiban').reduce((s, a) => s + getLiveBalance(a.kode, fundCategory, 'all'), 0);
+    const ekuitasBase = fundAccounts.filter(a => a.jenis === 'Ekuitas').reduce((s, a) => s + getLiveBalance(a.kode, fundCategory, 'all'), 0);
+    
+    const pendapatanLalu = fundAccounts.filter(a => a.jenis === 'Pendapatan').reduce((s, a) => s + getLiveBalance(a.kode, fundCategory, 'past'), 0);
+    const bebanLalu = fundAccounts.filter(a => a.jenis === 'Beban').reduce((s, a) => s + getLiveBalance(a.kode, fundCategory, 'past'), 0);
+    const surplusLalu = pendapatanLalu - bebanLalu;
+    
+    const ekuitas = ekuitasBase + surplusLalu;
+    const pendapatan = fundAccounts.filter(a => a.jenis === 'Pendapatan').reduce((s, a) => s + getLiveBalance(a.kode, fundCategory, 'current'), 0);
+    const beban = fundAccounts.filter(a => a.jenis === 'Beban').reduce((s, a) => s + getLiveBalance(a.kode, fundCategory, 'current'), 0);
     const surplus = pendapatan - beban;
 
-    return { aktiva, kewajiban, ekuitas, pendapatan, beban, surplus, totalSaldoNeto: ekuitas + surplus, accounts: fundAccounts };
+    return { aktiva, kewajiban, ekuitas, pendapatan, beban, surplus, surplusLalu, totalSaldoNeto: ekuitas + surplus, accounts: fundAccounts };
   };
 
   const zakatMetrics = getFundMetrics('Zakat');
@@ -128,7 +153,7 @@ export const ModulLaporanKeuangan: React.FC<ModulLaporanKeuanganProps> = ({
   // Filter lists based on selected fund category tab
   const filterByFund = (list: AkunCoA[]) => {
     if (selectedFundFilter === 'Semua' || selectedFundFilter === 'Komparatif' || selectedFundFilter === 'Multi') return list;
-    return list.filter(a => getAccountFundCategory(a) === selectedFundFilter || (isSharedAccount(a.kode) && getLiveBalance(a.kode, selectedFundFilter) !== 0));
+    return list.filter(a => getAccountFundCategory(a) === selectedFundFilter || (isSharedAccount(a.kode) && (getLiveBalance(a.kode, selectedFundFilter, 'all') !== 0 || getLiveBalance(a.kode, selectedFundFilter, 'current') !== 0)));
   };
 
   const aktivaList = filterByFund(accounts.filter(a => a.jenis === 'Aktiva'));
@@ -137,12 +162,17 @@ export const ModulLaporanKeuangan: React.FC<ModulLaporanKeuanganProps> = ({
   const pendapatanList = filterByFund(accounts.filter(a => a.jenis === 'Pendapatan'));
   const bebanList = filterByFund(accounts.filter(a => a.jenis === 'Beban'));
 
-  const totalAktiva = aktivaList.reduce((s, a) => s + getLiveBalance(a.kode, selectedFundFilter), 0);
-  const totalKewajiban = kewajibanList.reduce((s, a) => s + getLiveBalance(a.kode, selectedFundFilter), 0);
-  const totalEkuitas = ekuitasList.reduce((s, a) => s + getLiveBalance(a.kode, selectedFundFilter), 0);
+  const totalAktiva = aktivaList.reduce((s, a) => s + getLiveBalance(a.kode, selectedFundFilter, 'all'), 0);
+  const totalKewajiban = kewajibanList.reduce((s, a) => s + getLiveBalance(a.kode, selectedFundFilter, 'all'), 0);
+  
+  const ekuitasBase = ekuitasList.reduce((s, a) => s + getLiveBalance(a.kode, selectedFundFilter, 'all'), 0);
+  const pendapatanLalu = pendapatanList.reduce((s, a) => s + getLiveBalance(a.kode, selectedFundFilter, 'past'), 0);
+  const bebanLalu = bebanList.reduce((s, a) => s + getLiveBalance(a.kode, selectedFundFilter, 'past'), 0);
+  const surplusDefisitLalu = pendapatanLalu - bebanLalu;
+  const totalEkuitas = ekuitasBase + surplusDefisitLalu;
 
-  const totalPendapatan = pendapatanList.reduce((s, a) => s + getLiveBalance(a.kode, selectedFundFilter), 0);
-  const totalBeban = bebanList.reduce((s, a) => s + getLiveBalance(a.kode, selectedFundFilter), 0);
+  const totalPendapatan = pendapatanList.reduce((s, a) => s + getLiveBalance(a.kode, selectedFundFilter, 'current'), 0);
+  const totalBeban = bebanList.reduce((s, a) => s + getLiveBalance(a.kode, selectedFundFilter, 'current'), 0);
   const surplusDefisit = totalPendapatan - totalBeban;
 
   const isBalanced = Math.abs(totalAktiva - (totalKewajiban + totalEkuitas + surplusDefisit)) < 1;
@@ -154,17 +184,18 @@ export const ModulLaporanKeuangan: React.FC<ModulLaporanKeuanganProps> = ({
   const handleExportExcel = () => {
     const data = [];
     data.push({ Kategori: 'AKTIVA', Kode: '', Nama: '', Saldo: '' });
-    aktivaList.forEach(a => data.push({ Kategori: 'Aktiva', Kode: a.kode, Nama: a.nama, Saldo: getLiveBalance(a.kode, selectedFundFilter) }));
+    aktivaList.forEach(a => data.push({ Kategori: 'Aktiva', Kode: a.kode, Nama: a.nama, Saldo: getLiveBalance(a.kode, selectedFundFilter, 'all') }));
     data.push({ Kategori: '', Kode: '', Nama: 'Total Aktiva', Saldo: totalAktiva });
     
     data.push({ Kategori: '', Kode: '', Nama: '', Saldo: '' });
     data.push({ Kategori: 'KEWAJIBAN', Kode: '', Nama: '', Saldo: '' });
-    kewajibanList.forEach(a => data.push({ Kategori: 'Kewajiban', Kode: a.kode, Nama: a.nama, Saldo: getLiveBalance(a.kode, selectedFundFilter) }));
+    kewajibanList.forEach(a => data.push({ Kategori: 'Kewajiban', Kode: a.kode, Nama: a.nama, Saldo: getLiveBalance(a.kode, selectedFundFilter, 'all') }));
     data.push({ Kategori: '', Kode: '', Nama: 'Total Kewajiban', Saldo: totalKewajiban });
 
     data.push({ Kategori: '', Kode: '', Nama: '', Saldo: '' });
     data.push({ Kategori: 'SALDO DANA', Kode: '', Nama: '', Saldo: '' });
-    ekuitasList.forEach(a => data.push({ Kategori: 'Ekuitas', Kode: a.kode, Nama: a.nama, Saldo: getLiveBalance(a.kode, selectedFundFilter) }));
+    ekuitasList.forEach(a => data.push({ Kategori: 'Ekuitas', Kode: a.kode, Nama: a.nama, Saldo: getLiveBalance(a.kode, selectedFundFilter, 'all') }));
+    data.push({ Kategori: 'Ekuitas', Kode: '3999', Nama: 'Surplus/Defisit Periode Lalu', Saldo: surplusDefisitLalu });
     
     data.push({ Kategori: 'Surplus/Defisit', Kode: '', Nama: 'Periode Berjalan', Saldo: surplusDefisit });
     data.push({ Kategori: '', Kode: '', Nama: 'Total Kewajiban & Ekuitas', Saldo: totalKewajiban + totalEkuitas + surplusDefisit });
@@ -183,18 +214,19 @@ export const ModulLaporanKeuangan: React.FC<ModulLaporanKeuanganProps> = ({
     
     const tableData: any[] = [];
     tableData.push(['AKTIVA', '', '']);
-    aktivaList.forEach(a => tableData.push([a.kode, a.nama, formatRp(getLiveBalance(a.kode, selectedFundFilter))]));
+    aktivaList.forEach(a => tableData.push([a.kode, a.nama, formatRp(getLiveBalance(a.kode, selectedFundFilter, 'all'))]));
     tableData.push(['', 'Total Aktiva', formatRp(totalAktiva)]);
     tableData.push(['', '', '']);
     
     tableData.push(['KEWAJIBAN', '', '']);
-    kewajibanList.forEach(a => tableData.push([a.kode, a.nama, formatRp(getLiveBalance(a.kode, selectedFundFilter))]));
+    kewajibanList.forEach(a => tableData.push([a.kode, a.nama, formatRp(getLiveBalance(a.kode, selectedFundFilter, 'all'))]));
     tableData.push(['', 'Total Kewajiban', formatRp(totalKewajiban)]);
     tableData.push(['', '', '']);
     
     tableData.push(['SALDO DANA', '', '']);
-    ekuitasList.forEach(a => tableData.push([a.kode, a.nama, formatRp(getLiveBalance(a.kode, selectedFundFilter))]));
-    tableData.push(['', 'Surplus/Defisit', formatRp(surplusDefisit)]);
+    ekuitasList.forEach(a => tableData.push([a.kode, a.nama, formatRp(getLiveBalance(a.kode, selectedFundFilter, 'all'))]));
+    tableData.push(['3999', 'Surplus/Defisit Periode Lalu', formatRp(surplusDefisitLalu)]);
+    tableData.push(['', 'Surplus/Defisit Berjalan', formatRp(surplusDefisit)]);
     tableData.push(['', 'Total Kewajiban & Saldo Dana', formatRp(totalKewajiban + totalEkuitas + surplusDefisit)]);
 
     (doc as any).autoTable({

@@ -1,5 +1,54 @@
 import { JadwalWaktu } from '../types';
 
+let cachedPrayerTimes: JadwalWaktu | null = null;
+let cachedHijriDate: string | null = null;
+let lastFetchDate: string | null = null;
+
+export async function fetchPrayerTimesOnline(city: string = 'Bogor', country: string = 'Indonesia'): Promise<{jadwal: JadwalWaktu, hijri: string}> {
+  const todayStr = new Date().toISOString().split('T')[0];
+  
+  if (cachedPrayerTimes && cachedHijriDate && lastFetchDate === todayStr) {
+    return { jadwal: cachedPrayerTimes, hijri: cachedHijriDate };
+  }
+
+  try {
+    const res = await fetch(`https://api.aladhan.com/v1/timingsByCity?city=${encodeURIComponent(city)}&country=${encodeURIComponent(country)}&method=11`);
+    if (!res.ok) throw new Error('API Error');
+    const json = await res.json();
+    
+    if (json.data && json.data.timings) {
+      const t = json.data.timings;
+      const h = json.data.date.hijri;
+      
+      const newJadwal = {
+        imsak: t.Imsak,
+        subuh: t.Fajr,
+        syuruq: t.Sunrise,
+        dzuhur: t.Dhuhr,
+        ashar: t.Asr,
+        maghrib: t.Maghrib,
+        isya: t.Isha
+      };
+      
+      const newHijri = `${h.day} ${h.month.en} ${h.year} H`;
+      
+      cachedPrayerTimes = newJadwal;
+      cachedHijriDate = newHijri;
+      lastFetchDate = todayStr;
+      
+      return { jadwal: newJadwal, hijri: newHijri };
+    }
+  } catch (err) {
+    console.error('Gagal mengambil jadwal dari API, menggunakan data offline (fallback)', err);
+  }
+  
+  // Fallback
+  return { 
+    jadwal: getPrayerTimesSentul(),
+    hijri: getHijriDateIndo()
+  };
+}
+
 /**
  * Static or calculated Prayer Times for Sentul / Kabupaten Bogor region
  */
@@ -53,7 +102,9 @@ export function getNextPrayerInfo(jadwal: JadwalWaktu): { name: string; time: st
   const currentMinutes = now.getHours() * 60 + now.getMinutes();
 
   const list: { name: string; timeStr: string; minutes: number }[] = [
+    { name: 'Imsak', timeStr: jadwal.imsak, minutes: parseToMinutes(jadwal.imsak) },
     { name: 'Subuh', timeStr: jadwal.subuh, minutes: parseToMinutes(jadwal.subuh) },
+    { name: 'Syuruq', timeStr: jadwal.syuruq, minutes: parseToMinutes(jadwal.syuruq) },
     { name: 'Dzuhur', timeStr: jadwal.dzuhur, minutes: parseToMinutes(jadwal.dzuhur) },
     { name: 'Ashar', timeStr: jadwal.ashar, minutes: parseToMinutes(jadwal.ashar) },
     { name: 'Maghrib', timeStr: jadwal.maghrib, minutes: parseToMinutes(jadwal.maghrib) },

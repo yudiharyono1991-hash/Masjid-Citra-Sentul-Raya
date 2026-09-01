@@ -5,7 +5,8 @@ import { AlQuranDigital, BookmarkData } from './AlQuranDigital';
 import { BukuPanduanModal } from './BukuPanduanModal';
 import { triggerWaApp, sendWaViaGateway, generateWaReminderMessage, formatWaPhone, triggerDeviceNotification, requestDeviceNotificationPermission } from '../utils/whatsappReminder';
 import { supabase } from '../lib/supabase';
-import { getPrayerTimesSentul, getNextPrayerInfo } from '../utils/prayerTimes';
+import { getPrayerTimesSentul, getNextPrayerInfo, fetchPrayerTimesOnline } from '../utils/prayerTimes';
+import { JadwalWaktu } from '../types';
 interface JamaahDashboardProps {
   onBack: () => void;
   nama: string;
@@ -28,7 +29,12 @@ export const JamaahDashboard: React.FC<JamaahDashboardProps> = ({ onBack, nama, 
     return () => clearInterval(timer);
   }, []);
 
-  const jadwalShalat = getPrayerTimesSentul();
+  const [jadwalShalat, setJadwalShalat] = useState<JadwalWaktu>(getPrayerTimesSentul());
+  
+  useEffect(() => {
+    fetchPrayerTimesOnline().then(res => setJadwalShalat(res.jadwal));
+  }, []);
+
   const nextPrayer = getNextPrayerInfo(jadwalShalat);
 
   // Load profile from localStorage if present

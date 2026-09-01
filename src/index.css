@@ -88,3 +88,13 @@ button:active {
   .text-sm { font-size: 0.8rem !important; line-height: 1.25rem !important; }
 }
 
+/* Sembunyikan badge Netlify */
+[href*="netlify.com"],
+.netlify-badge,
+[data-netlify],
+iframe[src*="netlify"] {
+  display: none !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+

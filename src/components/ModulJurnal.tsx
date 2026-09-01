@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { toLocalDateString } from '../utils/formatters';
 import { PlusCircle, FileText, CheckCircle, Clock, Search, AlertCircle, Trash2, ArrowRight } from 'lucide-react';
 import { INITIAL_CHART_OF_ACCOUNTS, INITIAL_JURNAL_ENTRIES, JurnalEntry, JurnalBaris, AkunCoA } from '../data/akuntansiData';
 
@@ -29,7 +30,7 @@ export const ModulJurnal: React.FC<ModulJurnalProps> = ({
   const [filterSumber, setFilterSumber] = useState('Semua');
 
   // Form Double Entry State
-  const [formTgl, setFormTgl] = useState(new Date().toISOString().split('T')[0]);
+  const [formTgl, setFormTgl] = useState(toLocalDateString());
   const [formNoBukti, setFormNoBukti] = useState(`JU-${new Date().getFullYear()}-00${journalList.length + 1}`);
   const [formKet, setFormKet] = useState('');
   const [formSumber, setFormSumber] = useState<'Donasi Umum' | 'Donasi Portal Jamaah' | 'Kas Masjid' | 'Anggaran'>('Kas Masjid');
@@ -94,7 +95,7 @@ export const ModulJurnal: React.FC<ModulJurnalProps> = ({
       baris: formBaris.filter(b => b.kodeAkun && (b.debit > 0 || b.kredit > 0)),
       status,
       dibuatOleh: 'Staf Keuangan',
-      tanggalBuat: new Date().toISOString().split('T')[0],
+      tanggalBuat: toLocalDateString(),
     };
 
     setJournalList([newEntry, ...journalList]);

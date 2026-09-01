@@ -50,7 +50,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
     setErrorMsg('');
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     handleResetState();
 
@@ -126,7 +126,30 @@ export const LoginModal: React.FC<LoginModalProps> = ({
 
       const lowerId = identifier.trim().toLowerCase();
 
-      // Strict Admin / DKM Role Detection
+      try {
+        // 1. Check admin_users in Supabase FIRST
+        const { data: adminUsers, error: adminErr } = await supabase
+          .from('admin_users')
+          .select('*')
+          .eq('status', 'Aktif');
+          
+        if (!adminErr && adminUsers && adminUsers.length > 0) {
+          const matchedAdmin = adminUsers.find(u => 
+            (u.email?.toLowerCase() === lowerId || u.nama?.toLowerCase() === lowerId || u.kontak === lowerId) && 
+            u.password_hash === pass
+          );
+          
+          if (matchedAdmin) {
+             onAdminLogin(matchedAdmin.role || 'direktur');
+             onClose();
+             return;
+          }
+        }
+      } catch (e) {
+        console.error('Supabase admin login error:', e);
+      }
+
+      // 2. Strict Admin / DKM Role Detection (Fallback for default offline admin)
       const isAdminIdentifier = 
         lowerId === 'admin' || 
         lowerId === 'dkm' || 

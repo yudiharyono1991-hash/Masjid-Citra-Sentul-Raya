@@ -65,3 +65,23 @@ Jazakumullah Khairan Katsiran.`;
 export function generateUniqueCode(): number {
   return Math.floor(Math.random() * 899) + 100;
 }
+
+/**
+ * Get today's date as YYYY-MM-DD string using LOCAL timezone (not UTC).
+ * Fixes timezone bug where toISOString() returns previous day for UTC+7 users at midnight.
+ */
+export function toLocalDateString(date?: Date): string {
+  const d = date || new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+/**
+ * Get the first day of the current month as YYYY-MM-DD string (local timezone).
+ */
+export function getFirstDayOfMonth(): string {
+  const d = new Date();
+  return toLocalDateString(new Date(d.getFullYear(), d.getMonth(), 1));
+}

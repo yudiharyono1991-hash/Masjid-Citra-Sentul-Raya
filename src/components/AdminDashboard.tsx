@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { LogOut, MonitorPlay, RefreshCw, Book, Calendar, Video, ShieldCheck, Settings, Users, Database, PlusCircle, Save, ArrowDownCircle, ArrowUpCircle, X, FileText, Camera, Megaphone, Clock, Smartphone, UserCheck, Key, Search, Link2, Trash2, Moon, BookOpen, Scale, ClipboardList, Edit, Wallet, TrendingUp, TrendingDown, Activity, Heart, Building, LayoutDashboard, ChevronDown, Upload, Bell, CheckCircle2 } from 'lucide-react';
+import { LogOut, MonitorPlay, RefreshCw, Book, Calendar, Video, ShieldCheck, Settings, Users, Database, PlusCircle, Save, ArrowDownCircle, ArrowUpCircle, X, FileText, Camera, Megaphone, Clock, Smartphone, UserCheck, Key, Search, Link2, Trash2, Moon, BookOpen, Scale, ClipboardList, Edit, Wallet, TrendingUp, TrendingDown, Activity, Heart, Building, LayoutDashboard, ChevronDown, Upload, Bell, CheckCircle2, MessageSquare } from 'lucide-react';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import * as XLSX from 'xlsx';
@@ -8,13 +8,19 @@ import { ModulCoA } from './ModulCoA';
 import { ModulJurnal } from './ModulJurnal';
 import { ModulBukuBesar } from './ModulBukuBesar';
 import { ModulLaporanKeuangan } from './ModulLaporanKeuangan';
+import { ModulAspirasi } from './ModulAspirasi';
 import { ModulAnggaranApproval } from './ModulAnggaranApproval';
 import { ModulPenyusutanAset } from './ModulPenyusutanAset';
+import { ModulSuratMenyurat } from './ModulSuratMenyurat';
+import { ModulKalenderAdmin } from './ModulKalenderAdmin';
 import { BukuPanduanModal } from './BukuPanduanModal';
+import { getPrayerTimesSentul, fetchPrayerTimesOnline } from '../utils/prayerTimes';
 import { INITIAL_JURNAL_ENTRIES, JurnalEntry } from '../data/akuntansiData';
+import { PENGURUS_DKM } from '../data/pengurusData';
 import { supabase } from '../lib/supabase';
 import { Pagination } from './Pagination';
 import { DEFAULT_HERO_SLIDES, HeroSlide } from './Hero';
+import { toLocalDateString, getFirstDayOfMonth } from '../utils/formatters';
 
 interface Program {
   id: number;
@@ -95,7 +101,10 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
 }
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs, onAddDonation, homeVisibility, setHomeVisibility, registeredJamaahList, donasiHistory = [], onVerifyDonasi, onAddDonasiHistoryItem, adminRole = 'direktur', auditLogs = [] }) => {
-  const [activeMenu, setActiveMenu] = useState('utama');
+  const [activeMenu, setActiveMenu] = useState(() => {
+    const p = new URLSearchParams(window.location.search);
+    return p.get('menu') || 'utama';
+  });
   const [activeCategory, setActiveCategory] = useState('utama');
   const [donasiPage, setDonasiPage] = useState(1);
   const [jamaahPage, setJamaahPage] = useState(1);
@@ -108,7 +117,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
   const [showNotificationModal, setShowNotificationModal] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
 
-  // Notifications managed via localStorage (no Supabase polling to avoid 404 errors)
+  // Notifications: Supabase for cross-device sync + localStorage fallback
   const loadNotificationsFromStorage = () => {
     try {
       const stored = localStorage.getItem('admin_notifications');
@@ -116,12 +125,67 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
     } catch {}
   };
 
+  const fetchNotificationsFromSupabase = async () => {
+    try {
+      const { data } = await supabase
+        .from('notifications')
+        .select('*')
+        .or(`user_role.eq.semua,user_role.eq.${adminRole.toLowerCase()}`)
+        .order('created_at', { ascending: false })
+        .limit(20);
+      if (data && data.length > 0) {
+        setNotifications(data);
+        localStorage.setItem('admin_notifications', JSON.stringify(data));
+      }
+
+      // Also fetch TV config periodically to keep Display Masjid synced
+      const { data: settingsData } = await supabase.from('app_settings').select('*').maybeSingle();
+      if (settingsData) {
+        setAppSettings(settingsData);
+        // Only update local tvConfig if we are NOT currently editing it in the 'tv' menu
+        if (typeof window !== 'undefined' && !window.location.search.includes('menu=tv')) {
+          setTvConfig({
+            timezone: settingsData.tv_timezone || 'Asia/Jakarta',
+            jedaAdzan: settingsData.tv_jeda_adzan || 15,
+            jedaIqomah: settingsData.tv_jeda_iqomah || 10,
+            jedaSholat: settingsData.tv_jeda_sholat || 20,
+            runningText: settingsData.tv_running_text || 'Selamat Datang di Masjid Citra Sentul Raya. Mari rapatkan dan luruskan shaf shalat Anda.',
+            mediaType: settingsData.tv_media_type || 'background',
+            mediaUrl: settingsData.tv_media_url || '',
+            volume: settingsData.tv_volume || 0,
+            showImsak: settingsData.show_imsak !== false,
+            showBukaPuasa: settingsData.show_buka_puasa !== false,
+            showTarawih: settingsData.show_tarawih || false,
+            showJumat: settingsData.show_jumat !== false,
+            showIdulFitri: settingsData.show_idul_fitri || false,
+            showIdulAdha: settingsData.show_idul_adha || false,
+            textImsak: settingsData.text_imsak || 'Waktu Imsak telah tiba. Selamat menjalankan ibadah puasa.',
+            textBukaPuasa: settingsData.text_buka_puasa || 'Selamat berbuka puasa. Ya Allah karena-Mu aku berpuasa...',
+            textTarawih: settingsData.text_tarawih || 'Selamat menjalankan Ibadah Shalat Sunnah Tarawih berjamaah.',
+            textJumat: settingsData.text_jumat || 'Harap tenang, Khutbah Jumat sedang berlangsung.',
+            textIdulFitri: settingsData.text_idul_fitri || 'Selamat Hari Raya Idul Fitri 1 Syawal. Mohon maaf lahir dan batin.',
+            textIdulAdha: settingsData.text_idul_adha || 'Selamat Hari Raya Idul Adha. Mari berkurban untuk meraih takwa.',
+            city: settingsData.tv_city || 'Bogor',
+            country: settingsData.tv_country || 'Indonesia'
+          });
+        }
+      }
+    } catch {
+      // Fallback to localStorage silently
+      loadNotificationsFromStorage();
+    }
+  };
+
   useEffect(() => {
     loadNotificationsFromStorage();
-    // Listen for new notifications added by other parts of the app
+    fetchNotificationsFromSupabase();
+    const interval = setInterval(fetchNotificationsFromSupabase, 15000);
     window.addEventListener('storage', loadNotificationsFromStorage);
-    return () => window.removeEventListener('storage', loadNotificationsFromStorage);
-  }, []);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('storage', loadNotificationsFromStorage);
+    };
+  }, [adminRole]);
   
   const markNotificationAsRead = (id: string) => {
     const updated = notifications.map(n => n.id === id ? { ...n, is_read: true } : n);
@@ -129,13 +193,27 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
     try { localStorage.setItem('admin_notifications', JSON.stringify(updated)); } catch {}
   };
   const unreadNotificationsCount = notifications.filter(n => !n.is_read).length;
-  const [tvConfig, setTvConfig] = useState({
-    jedaAdzan: 10,
-    jedaIqomah: 15,
-    mediaType: 'background',
-    mediaUrl: '',
-    runningText: '*** SELAMAT DATANG DI MASJID CITRA SENTUL RAYA *** LURUSKAN DAN RAPATKAN SHAF SHALAT ANDA *** MOHON NONAKTIFKAN ALAT KOMUNIKASI SELAMA IBADAH BERLANGSUNG *** SALURKAN INFAQ TERBAIK ANDA MELALUI QRIS MASJID ***',
-    timezone: 'Asia/Jakarta'
+  const [tvConfig, setTvConfig] = useState({ 
+    timezone: 'Asia/Jakarta', 
+    jedaAdzan: 15, 
+    jedaIqomah: 10,
+    jedaSholat: 20,
+    runningText: 'Selamat Datang di Masjid Citra Sentul Raya. Mari rapatkan dan luruskan shaf shalat Anda.', 
+    mediaType: 'background', 
+    mediaUrl: '', 
+    volume: 0,
+    showImsak: true,
+    showBukaPuasa: true,
+    showTarawih: false,
+    showJumat: true,
+    showIdulFitri: false,
+    showIdulAdha: false,
+    textImsak: 'Waktu Imsak telah tiba. Selamat menjalankan ibadah puasa.',
+    textBukaPuasa: 'Selamat berbuka puasa. Ya Allah karena-Mu aku berpuasa...',
+    textTarawih: 'Selamat menjalankan Ibadah Shalat Sunnah Tarawih berjamaah.',
+    textJumat: 'Harap tenang, Khutbah Jumat sedang berlangsung.',
+    textIdulFitri: 'Selamat Hari Raya Idul Fitri 1 Syawal. Mohon maaf lahir dan batin.',
+    textIdulAdha: 'Selamat Hari Raya Idul Adha. Mari berkurban untuk meraih takwa.'
   });
 
   const [adminHeroSlides, setAdminHeroSlides] = useState<HeroSlide[]>(DEFAULT_HERO_SLIDES);
@@ -152,21 +230,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
     direktur: ['utama', 'keuangan', 'operasional', 'administrasi', 'pengaturan_grup'],
     admin: ['utama', 'keuangan', 'operasional', 'administrasi', 'pengaturan_grup'],
     bendahara: ['utama', 'keuangan', 'pengaturan_grup'],
+    sekretaris: ['utama', 'administrasi', 'operasional', 'pengaturan_grup'],
+    peribadatan: ['utama', 'operasional', 'pengaturan_grup'],
+    pembangunan: ['utama', 'operasional', 'administrasi', 'pengaturan_grup'],
+    umum: ['utama', 'operasional', 'pengaturan_grup'],
+    muslimah: ['utama', 'operasional', 'pengaturan_grup'],
+    penasehat: ['utama', 'keuangan', 'administrasi', 'pengaturan_grup'],
     staff: ['utama', 'operasional', 'administrasi', 'pengaturan_grup'],
     jamaah: []
   };
 
-  const [rolePermissions, setRolePermissions] = useState<Record<string, string[]>>(() => {
-    const saved = localStorage.getItem('rolePermissions');
-    if (saved) {
-      try { return JSON.parse(saved); } catch (e) {}
-    }
-    return defaultRolePermissions;
-  });
-
-  useEffect(() => {
-    localStorage.setItem('rolePermissions', JSON.stringify(rolePermissions));
-  }, [rolePermissions]);
+  const [rolePermissions, setRolePermissions] = useState<Record<string, string[]>>(defaultRolePermissions);
 
   const MENU_CATEGORIES = ALL_MENU_CATEGORIES.filter(cat => {
     const allowedMods = rolePermissions[adminRole.toLowerCase()] || [];
@@ -223,6 +297,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
     ],
     administrasi: [
       { id: 'profil', label: 'Profil & Pengurus', icon: Users },
+      { id: 'aspirasi', label: 'Kotak Masuk Jamaah', icon: MessageSquare },
       { 
         id: 'aset', 
         label: 'Inventaris & Foto Aset', 
@@ -233,7 +308,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
           { id: 'rusak', label: 'Daftar Barang Rusak', action: () => { setActiveMenu('aset'); setAsetTab('rusak'); } }
         ]
       },
-      { id: 'ttd', label: 'Tanda Tangan Laporan', icon: FileText },
+      { id: 'surat', label: 'Manajemen Surat Menyurat', icon: FileText },
+      { id: 'ttd', label: 'Tanda Tangan Laporan', icon: Edit },
     ],
     pengaturan_grup: [
       { id: 'role', label: 'Manajemen Akun & Role', icon: Key },
@@ -256,11 +332,36 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
     ]
   };
 
-  const [filterRingkasan, setFilterRingkasan] = useState({ start: '', end: '' });
-  const [filterPemasukan, setFilterPemasukan] = useState({ start: '', end: '' });
-  const [filterPengeluaran, setFilterPengeluaran] = useState({ start: '', end: '' });
+  const defaultToday = new Date();
+  const defaultFirstDay = new Date(defaultToday.getFullYear(), defaultToday.getMonth(), 1);
+  const formatLocal = (d: Date) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  };
+  const defaultStartStr = formatLocal(defaultFirstDay);
+  const defaultEndStr = formatLocal(defaultToday);
+
+  const [filterRingkasan, setFilterRingkasan] = useState({ start: defaultStartStr, end: defaultEndStr });
+  const [filterPemasukan, setFilterPemasukan] = useState({ start: defaultStartStr, end: defaultEndStr });
+  const [filterPengeluaran, setFilterPengeluaran] = useState({ start: defaultStartStr, end: defaultEndStr });
   const [kategoriKasMasjid, setKategoriKasMasjid] = useState('Semua');
-  const [settingTab, setSettingTab] = useState('pengumuman');
+  const [settingTab, setSettingTab] = useState(() => {
+    const p = new URLSearchParams(window.location.search);
+    return p.get('tab') || 'pengumuman';
+  });
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    params.set('menu', activeMenu);
+    if (activeMenu === 'pengaturan') {
+      params.set('tab', settingTab);
+    } else {
+      params.delete('tab');
+    }
+    window.history.replaceState(null, '', `?${params.toString()}`);
+  }, [activeMenu, settingTab]);
 
   // fetchHeroSlides: no longer fetches from Supabase to avoid 404 errors
   // Hero slides are managed via DEFAULT_HERO_SLIDES and localStorage preview
@@ -357,6 +458,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
   };
   const [showDisplayTV, setShowDisplayTV] = useState(false);
   const [time, setTime] = useState(new Date());
+  const [jadwalOnline, setJadwalOnline] = useState(getPrayerTimesSentul());
+  const [hijriOnline, setHijriOnline] = useState('');
   const [isDarkMode, setIsDarkMode] = useState(() => {
     return localStorage.getItem('theme') === 'dark';
   });
@@ -376,6 +479,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
     const timer = setInterval(() => setTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
+
+  // Fetch online prayer times when city/country changes
+  useEffect(() => {
+    fetchPrayerTimesOnline(tvConfig.city || 'Bogor', tvConfig.country || 'Indonesia')
+      .then(res => {
+        setJadwalOnline(res.jadwal);
+        setHijriOnline(res.hijri);
+      });
+  }, [tvConfig.city, tvConfig.country]);
   
   // ZISWAF State
   const [localPrograms, setLocalPrograms] = useState<any[]>([]);
@@ -384,7 +496,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
   const [showCampaignModal, setShowCampaignModal] = useState(false);
   const [editCampaignModalData, setEditCampaignModalData] = useState<any>(null);
   const [newCampaignData, setNewCampaignData] = useState({ judul: '', target: '', kategori: 'Zakat', gambar: '', akunDebit: '1104', akunKredit: '4106' });
-  const [selectedProgram, setSelectedProgram] = useState<number>(programs[0].id);
+  const [selectedProgram, setSelectedProgram] = useState<number>(programs[0]?.id || 0);
   const [nominalStr, setNominalStr] = useState('');
   const [showSuccess, setShowSuccess] = useState(false);
   const [showDonaturModal, setShowDonaturModal] = useState<number | null>(null);
@@ -398,13 +510,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
   const [kasEntries, setKasEntries] = useState<any[]>([]);
 
   // Profil Pengurus State
-  const [pengurusList, setPengurusList] = useState([
-    { id: 1, name: 'Prof. Dr. M. Syafii Antonio', role: 'Dewan Pembina Yayasan', tag: 'PEMBINA', img: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=150&q=80' },
-    { id: 2, name: 'Ustadz H. M. Zainuddin, SQ', role: 'Ketua / Direktur DKM', tag: 'PENGURUS', img: 'https://images.unsplash.com/photo-1600486913747-55e5470d6f40?auto=format&fit=crop&w=150&q=80' },
-    { id: 3, name: 'H. Ahmad', role: 'Bendahara Umum', tag: 'PENGURUS', img: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80' },
-  ]);
+  const [pengurusList, setPengurusList] = useState<any[]>([]);
   const [showProfilModal, setShowProfilModal] = useState(false);
-  const [profilFormData, setProfilFormData] = useState({ id: 0, name: '', role: '', tag: 'PENGURUS', img: '' });
+  const [profilFormData, setProfilFormData] = useState({ id: 0 as string | 0, nama: '', jabatan: '', biodata: '', foto_url: '', urutan: 0, tag: 'PENGURUS' });
+
+  useEffect(() => {
+    const fetchPengurusList = async () => {
+      const { data } = await supabase.from('masjid_pengurus_inti').select('*').order('urutan', { ascending: true });
+      if (data) setPengurusList(data);
+    };
+    if (settingTab === 'profil' || activeMenu === 'pengaturan' || activeMenu === 'profil') {
+      fetchPengurusList();
+    }
+  }, [settingTab, activeMenu]);
 
   // Tanda Tangan Laporan State
   const [pejabatTtdList, setPejabatTtdList] = useState([
@@ -493,20 +611,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
   const [selectedJamaahIndices, setSelectedJamaahIndices] = useState<number[]>(defaultJamaah.map((_, i) => i));
 
   // Pengguna (Role & Audit) State
-  const [akunPenggunaList, setAkunPenggunaList] = useState<any[]>([
-    { id: '1', n: 'Haji Ahmad Subagja', t: 'KETUA DKM', e: 'ahmad.subagja@gmail.com', c: '081298765432', r: 'admin', d: '10/01/2026', p: 'admin123' },
-    { id: '2', n: 'Haji Bambang Pamungkas, M.M.', t: 'BENDAHARA DKM', e: 'bambang.pamungkas@outlook.com', c: '081311223344', r: 'bendahara', d: '15/01/2026', p: 'admin123' },
-    { id: '3', n: 'Prof. Dr. M. Syafii Antonio', t: 'DIREKTUR', e: 'direktur@citrasentul.id', c: '081555667788', r: 'direktur', d: '01/02/2026', p: 'admin123' },
-    { id: '4', n: 'Yudi Haryono', t: 'JEMAAH', e: 'yudiharyono@gmail.com', c: '087812341234', r: 'jamaah', d: '01/02/2026', p: 'admin123' },
-  ]);
+  const [akunPenggunaList, setAkunPenggunaList] = useState<any[]>([]);
   const [showAkunPenggunaModal, setShowAkunPenggunaModal] = useState(false);
   const [akunPenggunaFormData, setAkunPenggunaFormData] = useState<any>({ id: 0, n: '', t: 'JEMAAH', e: '', c: '', r: 'jamaah', p: '' });
 
   useEffect(() => {
-    if (settingTab === 'grup') {
+    if (settingTab === 'grup' || activeMenu === 'role') {
       fetchAdminUsers();
     }
-  }, [settingTab]);
+  }, [settingTab, activeMenu]);
 
   const fetchAdminUsers = async () => {
     try {
@@ -656,6 +769,46 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
         const { data: settingsData } = await supabase.from('app_settings').select('*').maybeSingle();
         if (settingsData) {
           setAppSettings(settingsData);
+          setTvConfig({
+            timezone: settingsData.tv_timezone || 'Asia/Jakarta',
+            jedaAdzan: settingsData.tv_jeda_adzan || 15,
+            jedaIqomah: settingsData.tv_jeda_iqomah || 10,
+            jedaSholat: settingsData.tv_jeda_sholat || 20,
+            runningText: settingsData.tv_running_text || 'Selamat Datang di Masjid Citra Sentul Raya. Mari rapatkan dan luruskan shaf shalat Anda.',
+            mediaType: settingsData.tv_media_type || 'background',
+            mediaUrl: settingsData.tv_media_url || '',
+            volume: settingsData.tv_volume || 0,
+            showImsak: settingsData.show_imsak !== false,
+            showBukaPuasa: settingsData.show_buka_puasa !== false,
+            showTarawih: settingsData.show_tarawih || false,
+            showJumat: settingsData.show_jumat !== false,
+            showIdulFitri: settingsData.show_idul_fitri || false,
+            showIdulAdha: settingsData.show_idul_adha || false,
+            textImsak: settingsData.text_imsak || 'Waktu Imsak telah tiba. Selamat menjalankan ibadah puasa.',
+            textBukaPuasa: settingsData.text_buka_puasa || 'Selamat berbuka puasa. Ya Allah karena-Mu aku berpuasa...',
+            textTarawih: settingsData.text_tarawih || 'Selamat menjalankan Ibadah Shalat Sunnah Tarawih berjamaah.',
+            textJumat: settingsData.text_jumat || 'Harap tenang, Khutbah Jumat sedang berlangsung.',
+            textIdulFitri: settingsData.text_idul_fitri || 'Selamat Hari Raya Idul Fitri 1 Syawal. Mohon maaf lahir dan batin.',
+            textIdulAdha: settingsData.text_idul_adha || 'Selamat Hari Raya Idul Adha. Mari berkurban untuk meraih takwa.',
+            city: settingsData.tv_city || 'Bogor',
+            country: settingsData.tv_country || 'Indonesia'
+          });
+        }
+        
+        const { data: rolesData } = await supabase.from('admin_role_permissions').select('*');
+        if (rolesData) {
+          const permMap: Record<string, string[]> = { ...defaultRolePermissions };
+          rolesData.forEach(r => {
+            const arr = ['utama']; // always allow utama
+            if (r.permissions) {
+              if (r.permissions.keuangan) arr.push('keuangan');
+              if (r.permissions.operasional) arr.push('operasional');
+              if (r.permissions.administrasi) arr.push('administrasi');
+              if (r.permissions.pengaturan) arr.push('pengaturan_grup');
+            }
+            permMap[r.role.toLowerCase()] = arr;
+          });
+          setRolePermissions(permMap);
         }
 
         // Fetch CoA
@@ -798,7 +951,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
 
   const [namaDonaturStr, setNamaDonaturStr] = useState('');
   const [kontakDonaturStr, setKontakDonaturStr] = useState('');
-  const [ziswafTgl, setZiswafTgl] = useState(new Date().toISOString().split('T')[0]);
+  const [ziswafTgl, setZiswafTgl] = useState(toLocalDateString());
   const [ziswafBukti, setZiswafBukti] = useState<File | null>(null);
   const [selectedJamaahZiswaf, setSelectedJamaahZiswaf] = useState('manual');
 
@@ -829,7 +982,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
       const isWakaf = progTitle.toLowerCase().includes('wakaf');
       const namaDonatur = namaDonaturStr.trim() || 'Hamba Allah';
       const noBukti = `BKM-DON-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
-      const tanggal = ziswafTgl || new Date().toISOString().split('T')[0];
+      const tanggal = ziswafTgl || toLocalDateString();
       const tglObj = new Date(tanggal);
       const tanggalFormatted = !isNaN(tglObj.getTime()) ? tglObj.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : tanggal;
 
@@ -943,7 +1096,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
       setNamaDonaturStr('');
       setKontakDonaturStr('');
       setZiswafBukti(null);
-      setZiswafTgl(new Date().toISOString().split('T')[0]);
+      setZiswafTgl(toLocalDateString());
       setSelectedJamaahZiswaf('manual');
       setShowSuccess(true);
       setTimeout(() => setShowSuccess(false), 3000);
@@ -965,7 +1118,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
       setKasEntries(prev => [newKas, ...prev]);
 
       const noBukti = `BKM-RT-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
-      const tanggal = dateInput || new Date().toISOString().split('T')[0];
+      const tanggal = dateInput || toLocalDateString();
 
       const namaAkunDebit = accounts.find(a => a.kode === akunDebit)?.nama || 'Kas/Bank (Debit)';
       const namaAkunKredit = accounts.find(a => a.kode === akunKredit)?.nama || 'Pendapatan/Penerimaan (Kredit)';
@@ -1046,7 +1199,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
       setKasEntries(prev => [newKas, ...prev]);
 
       const noBukti = `BKK-RT-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
-      const tanggal = dateInput || new Date().toISOString().split('T')[0];
+      const tanggal = dateInput || toLocalDateString();
 
       const namaAkunDebit = accounts.find(a => a.kode === akunDebit)?.nama || 'Beban/Aset (Debit)';
       const namaAkunKredit = accounts.find(a => a.kode === akunKredit)?.nama || 'Kas/Bank (Kredit)';
@@ -1158,17 +1311,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
 
   if (showDisplayTV) {
     const now = time;
+    const pt = jadwalOnline;
     const jadwal = [
-      { n: 'SUBUH', t: '04:45' },
-      { n: 'DZUHUR', t: '12:02' },
-      { n: 'ASHAR', t: '15:23' },
-      { n: 'MAGHRIB', t: '17:58' },
-      { n: 'ISYA', t: '19:12' }
+      { n: 'SUBUH', t: pt.subuh },
+      { n: 'DZUHUR', t: pt.dzuhur },
+      { n: 'ASHAR', t: pt.ashar },
+      { n: 'MAGHRIB', t: pt.maghrib },
+      { n: 'ISYA', t: pt.isya }
     ];
 
     let nextPrayer = jadwal[0];
     let isCountdownAdzan = false;
     let isCountdownIqomah = false;
+    let isWaktuSholat = false;
     let countdownText = "";
     let activeIndex = -1;
     
@@ -1196,18 +1351,23 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
         }
         break;
       } else {
-        const diffMs = now.getTime() - p.date.getTime();
-        const diffMinutes = diffMs / 60000;
-        if (diffMinutes <= tvConfig.jedaIqomah) {
-           isCountdownIqomah = true;
-           activeIndex = i;
-           nextPrayer = jadwal[i];
-           const remainingMs = (tvConfig.jedaIqomah * 60000) - diffMs;
-           const m = Math.floor(remainingMs / 60000);
-           const s = Math.floor((remainingMs % 60000) / 1000);
-           countdownText = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-           break;
-        }
+          const diffMs = now.getTime() - p.date.getTime();
+          const diffMinutes = diffMs / 60000;
+          if (diffMinutes <= tvConfig.jedaIqomah) {
+             isCountdownIqomah = true;
+             activeIndex = i;
+             nextPrayer = jadwal[i];
+             const remainingMs = (tvConfig.jedaIqomah * 60000) - diffMs;
+             const m = Math.floor(remainingMs / 60000);
+             const s = Math.floor((remainingMs % 60000) / 1000);
+             countdownText = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+             break;
+          } else if (diffMinutes <= tvConfig.jedaIqomah + 20) {
+             isWaktuSholat = true;
+             activeIndex = i;
+             nextPrayer = jadwal[i];
+             break;
+          }
       }
     }
     
@@ -1217,12 +1377,25 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
        nextPrayer = jadwal[0];
     }
 
+    const getEmbedUrl = (url: string) => {
+      if (!url) return '';
+      let videoId = '';
+      if (url.includes('youtu.be/')) videoId = url.split('youtu.be/')[1].split('?')[0];
+      else if (url.includes('youtube.com/watch?v=')) videoId = url.split('v=')[1].split('&')[0];
+      else if (url.includes('youtube.com/shorts/')) videoId = url.split('shorts/')[1].split('?')[0];
+      else if (url.includes('youtube.com/live/')) videoId = url.split('live/')[1].split('?')[0];
+      else if (url.includes('youtube.com/embed/')) return url;
+      
+      // Prevent embedding standard youtube.com which blocks iframe, return an empty string to show fallback background if parsing fails
+      return videoId ? `https://www.youtube.com/embed/${videoId}` : '';
+    };
+
     return (
-      <div className="fixed inset-0 bg-black z-50 flex flex-col text-slate-800 font-sans overflow-hidden">
-        <div className="flex-1 flex flex-col items-center justify-center relative p-8">
-          {tvConfig.mediaType === 'youtube' && tvConfig.mediaUrl ? (
-            <iframe src={`${tvConfig.mediaUrl}${tvConfig.mediaUrl.includes('?') ? '&' : '?'}autoplay=1&mute=1&loop=1&controls=0`} className="absolute inset-0 w-[120%] h-[120%] -left-[10%] -top-[10%] pointer-events-none opacity-40 object-cover" allow="autoplay; encrypted-media" />
-          ) : tvConfig.mediaType === 'cctv' && tvConfig.mediaUrl ? (
+      <div className="fixed inset-0 bg-black z-50 flex flex-col text-slate-800 font-sans overflow-y-auto">
+        <div className="flex-1 flex flex-col items-center justify-center relative p-8 min-h-screen">
+          {!isCountdownAdzan && !isCountdownIqomah && !isWaktuSholat && tvConfig.mediaType === 'youtube' && tvConfig.mediaUrl ? (
+            <iframe src={`${getEmbedUrl(tvConfig.mediaUrl)}?autoplay=1&mute=${tvConfig.volume === 0 ? 1 : 0}&loop=1&controls=0`} className="absolute inset-0 w-[120%] h-[120%] -left-[10%] -top-[10%] pointer-events-none opacity-40 object-cover" allow="autoplay; encrypted-media" />
+          ) : !isCountdownAdzan && !isCountdownIqomah && !isWaktuSholat && tvConfig.mediaType === 'cctv' && tvConfig.mediaUrl ? (
             <iframe src={tvConfig.mediaUrl} className="absolute inset-0 w-full h-full pointer-events-none opacity-40 object-cover" />
           ) : (
             <img src="https://images.unsplash.com/photo-1564769625905-50e93615e769?auto=format&fit=crop&w=2000&q=80" className="absolute inset-0 w-full h-full object-cover opacity-20 pointer-events-none" alt="bg" />
@@ -1245,17 +1418,23 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
             </div>
             
             {isCountdownAdzan ? (
-              <div className="bg-red-600/80 p-8 rounded-3xl border border-red-500 shadow-2xl backdrop-blur-md inline-block mb-12 animate-pulse">
-                <h2 className="text-3xl md:text-5xl text-white font-bold mb-4">WAKTU MENUJU ADZAN {nextPrayer.n}</h2>
-                <div className="text-[140px] md:text-[200px] font-mono text-white font-black leading-none drop-shadow-xl">{countdownText}</div>
+              <div className="bg-red-600/80 p-6 md:p-8 rounded-3xl border border-red-500 shadow-2xl backdrop-blur-md inline-block mb-12 animate-pulse w-full max-w-4xl mx-auto">
+                <h2 className="text-xl sm:text-3xl md:text-5xl text-white font-bold mb-4">WAKTU MENUJU ADZAN {nextPrayer.n}</h2>
+                <div className="text-6xl sm:text-[100px] md:text-[140px] lg:text-[200px] font-mono text-white font-black leading-none drop-shadow-xl">{countdownText}</div>
               </div>
             ) : isCountdownIqomah ? (
-              <div className="bg-lime-600/80 p-8 rounded-3xl border border-lime-500 shadow-2xl backdrop-blur-md inline-block mb-12">
-                <h2 className="text-3xl md:text-5xl text-white font-bold mb-4">MENUJU IQOMAH {nextPrayer.n}</h2>
-                <div className="text-[140px] md:text-[200px] font-mono text-white font-black leading-none drop-shadow-xl">{countdownText}</div>
+              <div className="bg-orange-500/80 p-6 md:p-8 rounded-3xl border border-orange-400 shadow-2xl backdrop-blur-md inline-block mb-12 animate-pulse w-full max-w-4xl mx-auto">
+                <h2 className="text-xl sm:text-3xl md:text-5xl text-white font-bold mb-4">WAKTU MENUJU IQOMAH {nextPrayer.n}</h2>
+                <div className="text-6xl sm:text-[100px] md:text-[140px] lg:text-[200px] font-mono text-white font-black leading-none drop-shadow-xl">{countdownText}</div>
+              </div>
+            ) : isWaktuSholat ? (
+              <div className="bg-slate-900/90 p-8 md:p-12 rounded-3xl border border-slate-700 shadow-2xl backdrop-blur-md inline-block mb-12 w-full max-w-4xl mx-auto">
+                <h2 className="text-2xl sm:text-4xl md:text-5xl text-white font-bold mb-6 uppercase tracking-widest text-center">Harap Tenang</h2>
+                <div className="text-xl sm:text-2xl md:text-3xl text-lime-400 font-bold leading-relaxed text-center">SHALAT BERJAMAAH {nextPrayer.n} SEDANG BERLANGSUNG</div>
+                <div className="mt-8 text-sm md:text-base text-slate-400 font-medium text-center italic">"Dan apabila dibacakan Al-Qur'an, maka dengarkanlah baik-baik, dan perhatikanlah dengan tenang..."</div>
               </div>
             ) : (
-              <div className="text-[120px] md:text-[180px] font-bold text-white leading-none font-mono tracking-tighter drop-shadow-[0_0_30px_rgba(132,204,22,0.3)] mb-12">
+              <div className="text-6xl sm:text-[80px] md:text-[120px] lg:text-[180px] font-bold text-white leading-none font-mono tracking-tighter drop-shadow-[0_0_30px_rgba(132,204,22,0.3)] mb-12">
                 {time.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: tvConfig.timezone })}
               </div>
             )}
@@ -1273,7 +1452,25 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
         
         <div className="h-20 bg-lime-600 flex items-center overflow-hidden border-t-4 border-lime-400 shrink-0">
           <div className="whitespace-nowrap text-2xl font-bold text-black px-4" style={{ animation: 'marquee 25s linear infinite' }}>
-            {tvConfig.runningText}
+            {(() => {
+              let text = tvConfig.runningText;
+              const h = now.getHours();
+              const d = now.getDay(); // 0 = Sunday, 5 = Friday
+              
+              // Khutbah Jumat
+              if (tvConfig.showJumat && d === 5 && h >= 11 && h <= 13) text += " • " + tvConfig.textJumat;
+              // Buka Puasa (Sekitar Maghrib)
+              if (tvConfig.showBukaPuasa && nextPrayer.n === 'Maghrib' && isCountdownAdzan) text += " • " + tvConfig.textBukaPuasa;
+              // Imsak (Menjelang Subuh)
+              if (tvConfig.showImsak && nextPrayer.n === 'Subuh' && isCountdownAdzan) text += " • " + tvConfig.textImsak;
+              // Tarawih (Malam hari bulan Ramadhan - asumsikan setelah Isya)
+              if (tvConfig.showTarawih && (h >= 19 || h <= 4)) text += " • " + tvConfig.textTarawih;
+              // Idul Fitri / Idul Adha (toggled manually by admin)
+              if (tvConfig.showIdulFitri) text += " • " + tvConfig.textIdulFitri;
+              if (tvConfig.showIdulAdha) text += " • " + tvConfig.textIdulAdha;
+              
+              return text;
+            })()}
           </div>
         </div>
       </div>
@@ -1639,10 +1836,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
           <div className="animate-in fade-in space-y-6">
             {/* KPI Dashboard Kas */}
             {(() => {
-              const totalIn = kasEntries.filter(e => e.type === 'in').reduce((sum, e) => sum + e.amount, 0);
-              const totalOut = kasEntries.filter(e => e.type === 'out').reduce((sum, e) => sum + e.amount, 0);
-              const saldo = totalIn - totalOut;
+              const periodEntries = kasEntries.filter(e => isWithinDateRange(e.date, filterRingkasan));
+              const totalIn = periodEntries.filter(e => e.type === 'in').reduce((sum, e) => sum + e.amount, 0);
+              const totalOut = periodEntries.filter(e => e.type === 'out').reduce((sum, e) => sum + e.amount, 0);
               
+              const saldo = kasEntries.filter(e => {
+                if (!filterRingkasan.end) return true;
+                const parts = e.date.split('/');
+                if (parts.length !== 3) return true;
+                const [d, m, y] = parts;
+                return new Date(Number(y), Number(m) - 1, Number(d)).getTime() <= new Date(filterRingkasan.end).setHours(23,59,59,999);
+              }).reduce((sum, e) => sum + (e.type === 'in' ? e.amount : -e.amount), 0);
               return (
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 mb-3">
                   <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between transition-transform hover:-translate-y-1">
@@ -1675,7 +1879,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
                   <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between transition-transform hover:-translate-y-1">
                     <div>
                       <p className="text-slate-500 text-xs font-bold uppercase tracking-wider mb-0.5">Total Transaksi</p>
-                      <h3 className="text-lg font-extrabold text-slate-800">{kasEntries.length}</h3>
+                      <h3 className="text-lg font-extrabold text-slate-800">{periodEntries.length}</h3>
                     </div>
                     <div className="w-9 h-9 bg-blue-50 rounded-full flex items-center justify-center shrink-0">
                       <Activity className="w-4 h-4 text-blue-600" />
@@ -1779,7 +1983,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
                   <form className="space-y-5" onSubmit={handleKasPemasukanSubmit}>
                     <div>
                       <label className="block text-sm font-bold text-slate-500 mb-2">Tanggal Transaksi</label>
-                      <input name="tgl" type="date" className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl text-slate-800 focus:outline-none focus:border-lime-600" required defaultValue={new Date().toISOString().split('T')[0]} />
+                      <input name="tgl" type="date" className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl text-slate-800 focus:outline-none focus:border-lime-600" required defaultValue={toLocalDateString()} />
                     </div>
                     <div>
                       <label className="block text-sm font-bold text-slate-500 mb-2">Keterangan / Sumber Dana</label>
@@ -1857,7 +2061,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
                   <form className="space-y-5" onSubmit={handleKasPengeluaranSubmit}>
                     <div>
                       <label className="block text-sm font-bold text-slate-500 mb-2">Tanggal Transaksi</label>
-                      <input name="tgl" type="date" className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl text-slate-800 focus:outline-none focus:border-lime-600" required defaultValue={new Date().toISOString().split('T')[0]} />
+                      <input name="tgl" type="date" className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl text-slate-800 focus:outline-none focus:border-lime-600" required defaultValue={toLocalDateString()} />
                     </div>
                     <div>
                       <label className="block text-sm font-bold text-slate-500 mb-2">Keterangan / Tujuan Pengeluaran</label>
@@ -2320,7 +2524,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
                                   const namaDebit = accounts.find(a => a.kode === akunDebit)?.nama || 'Kas/Bank Debit';
                                   const namaKredit = accounts.find(a => a.kode === akunKredit)?.nama || 'Pendapatan/Kredit';
 
-                                  const tanggalKini = new Date().toISOString().split('T')[0];
+                                  const tanggalKini = toLocalDateString();
                                   const newJournal: JurnalEntry = {
                                     id: `JU-ZIS-${Date.now()}`,
                                     tanggal: tanggalKini,
@@ -2479,61 +2683,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
 
         {/* MODUL: KALENDER & AGENDA */}
         {activeMenu === 'kalender' && (
-          <div className="animate-in fade-in bg-white p-6 md:p-8 rounded-xl border border-slate-200">
-            <div className="flex items-center justify-between mb-6 border-b border-slate-200 pb-4">
-              <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2"><Calendar className="w-6 h-6 text-lime-500" /> Form Tambah Agenda Masjid</h2>
-            </div>
-            
-            <form className="bg-slate-50 p-6 rounded-xl border border-slate-200 space-y-5" onSubmit={(e) => { e.preventDefault(); alert('Agenda beserta foto berhasil ditambahkan ke sistem!'); }}>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-bold text-slate-600 mb-2">Nama Kegiatan / Agenda <span className="text-red-500">*</span></label>
-                  <input type="text" placeholder="Contoh: Kajian Subuh Tematik" className="w-full p-3 bg-white border border-slate-300 rounded-lg text-slate-800 focus:outline-none focus:border-lime-600" required />
-                </div>
-                <div>
-                  <label className="block text-sm font-bold text-slate-600 mb-2">Kategori</label>
-                  <select className="w-full p-3 bg-white border border-slate-300 rounded-lg text-slate-800 focus:outline-none focus:border-lime-600">
-                    <option>Kajian / Ceramah</option>
-                    <option>Pendidikan / Tahsin</option>
-                    <option>Sosial / Masyarakat</option>
-                    <option>Rapat Kepengurusan</option>
-                  </select>
-                </div>
+          <ModulKalenderAdmin />
 
-                <div>
-                  <label className="block text-sm font-bold text-slate-600 mb-2">Tanggal <span className="text-red-500">*</span></label>
-                  <input type="date" className="w-full p-3 bg-white border border-slate-300 rounded-lg text-slate-800 focus:outline-none focus:border-lime-600" required defaultValue="2026-07-29" />
-                </div>
-                <div>
-                  <label className="block text-sm font-bold text-slate-600 mb-2">Waktu <span className="text-red-500">*</span></label>
-                  <input type="text" placeholder="12:00 - 13:00" className="w-full p-3 bg-white border border-slate-300 rounded-lg text-slate-800 focus:outline-none focus:border-lime-600" required defaultValue="12:00 - 13:00" />
-                </div>
+        )}
 
-                <div>
-                  <label className="block text-sm font-bold text-slate-600 mb-2">Lokasi</label>
-                  <input type="text" placeholder="Ruang Utama Masjid Citra Sentul" className="w-full p-3 bg-white border border-slate-300 rounded-lg text-slate-800 focus:outline-none focus:border-lime-600" defaultValue="Ruang Utama Masjid Citra Sentul" />
-                </div>
-                <div>
-                  <label className="block text-sm font-bold text-slate-600 mb-2">Pengisi Acara / Pemateri</label>
-                  <input type="text" placeholder="Contoh: Ust. Adi Hidayat (Kosongkan jika tidak ada)" className="w-full p-3 bg-white border border-slate-300 rounded-lg text-slate-800 focus:outline-none focus:border-lime-600" />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-bold text-slate-600 mb-2">Deskripsi Singkat</label>
-                <textarea placeholder="Jelaskan detail agenda secara singkat..." rows={3} className="w-full p-3 bg-white border border-slate-300 rounded-lg text-slate-800 focus:outline-none focus:border-lime-600"></textarea>
-              </div>
-
-              <div>
-                <label className="block text-sm font-bold text-slate-600 mb-2">Upload Poster/Gambar Kegiatan (Opsional)</label>
-                <input type="file" accept="image/*" className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-slate-800 focus:outline-none focus:border-lime-600 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-lime-50 file:text-lime-700 hover:file:bg-lime-100" />
-              </div>
-
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
-                <button type="button" className="px-6 py-2.5 rounded-lg border border-slate-300 text-slate-600 font-bold hover:bg-slate-100 transition-colors">Batal</button>
-                <button type="submit" className="px-6 py-2.5 rounded-lg bg-lime-600 hover:bg-lime-700 text-white font-bold transition-colors shadow-lg shadow-lime-900/20">Simpan Agenda</button>
-              </div>
-            </form>
+        {/* MODUL: ASPIRASI / TANYA DKM */}
+        {activeMenu === 'aspirasi' && (
+          <div className="animate-in fade-in space-y-6">
+            <ModulAspirasi />
           </div>
         )}
 
@@ -2546,7 +2703,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
                 <p className="text-slate-500 text-sm">Atur daftar dewan pembina, pengurus DKM, dan staf. Data ini akan ditampilkan di halaman "Tentang Kami".</p>
               </div>
               <button onClick={() => { 
-                setProfilFormData({ id: 0, name: '', role: '', tag: 'PENGURUS', img: '' });
+                setProfilFormData({ id: 0, nama: '', jabatan: '', biodata: '', foto_url: '', urutan: 0, tag: 'PENGURUS' });
                 setShowProfilModal(true);
               }} className="bg-lime-600 hover:bg-lime-700 text-white font-bold py-2.5 px-6 rounded-xl transition-colors shrink-0 cursor-pointer shadow-lg shadow-lime-900/20">+ Tambah Pengurus</button>
             </div>
@@ -2555,23 +2712,35 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
               {pengurusList.map((p, i) => (
                 <div key={p.id || i} className="bg-white border border-slate-200 rounded-2xl p-5 flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between shadow-xl transition-transform hover:-translate-y-1">
                   <div className="flex items-center gap-4">
-                    <img src={p.img || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80'} alt={p.name} className="w-16 h-16 rounded-xl object-cover border border-slate-300 shadow-sm" />
+                    <img src={p.foto_url || p.img || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80'} alt={p.nama || p.name} className="w-16 h-16 rounded-xl object-cover border border-slate-300 shadow-sm" />
                     <div>
-                      <h3 className="font-bold text-slate-800 text-sm">{p.name}</h3>
-                      <p className="text-xs text-slate-500 mb-2">{p.role}</p>
-                      <span className="bg-lime-50 text-lime-600 text-xs font-bold px-2 py-1 rounded uppercase tracking-wider border border-lime-200">{p.tag}</span>
+                      <h3 className="font-bold text-slate-800 text-sm">{p.nama || p.name}</h3>
+                      <p className="text-xs text-slate-500 mb-2">{p.jabatan || p.role}</p>
+                      {p.biodata && <p className="text-[11px] text-slate-500 line-clamp-2 max-w-sm mb-2">{p.biodata}</p>}
+                      <span className="bg-lime-50 text-lime-600 text-xs font-bold px-2 py-1 rounded uppercase tracking-wider border border-lime-200">{p.tag || 'PENGURUS'}</span>
                     </div>
                   </div>
                   <div className="flex gap-2 self-end sm:self-start">
                     <button onClick={() => { 
-                      setProfilFormData({ ...p, id: p.id || Math.random() });
+                      setProfilFormData({ 
+                        id: p.id || 0, 
+                        nama: p.nama || p.name || '', 
+                        jabatan: p.jabatan || p.role || '', 
+                        biodata: p.biodata || '', 
+                        foto_url: p.foto_url || p.img || '',
+                        urutan: p.urutan || 0,
+                        tag: p.tag || 'PENGURUS'
+                      });
                       setShowProfilModal(true);
                     }} className="p-2 bg-slate-100 rounded-lg text-slate-500 hover:text-white hover:bg-lime-600 cursor-pointer transition-colors shadow-sm" title="Edit Profil">
                       <Settings className="w-4 h-4" />
                     </button>
-                    <button onClick={() => {
-                      if (window.confirm(`Hapus profil ${p.name}?`)) {
-                        setPengurusList(prev => prev.filter(item => item !== p));
+                    <button onClick={async () => {
+                      if (window.confirm(`Hapus profil ${p.nama || p.name}?`)) {
+                        if (typeof p.id === 'string') {
+                          await supabase.from('masjid_pengurus_inti').delete().eq('id', p.id);
+                        }
+                        setPengurusList(prev => prev.filter(item => item.id !== p.id));
                       }
                     }} className="p-2 bg-red-50 rounded-lg text-red-600 hover:bg-red-600 hover:text-white cursor-pointer transition-colors shadow-sm" title="Hapus Profil">
                       <Trash2 className="w-4 h-4" />
@@ -2580,6 +2749,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+        {/* MODUL: SURAT MENYURAT */}
+        {activeMenu === 'surat' && (
+          <div className="animate-in fade-in space-y-6">
+            <ModulSuratMenyurat adminRole={adminRole} />
           </div>
         )}
 
@@ -2639,7 +2815,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
                                   setHomeVisibility((prev: any) => ({ ...prev, [item.id]: newVal }));
                                   
                                   try {
-                                    await supabase.from('app_settings').update({ [dbKey]: newVal }).eq('id', 1);
+                                    await supabase.from('app_settings').update({ [dbKey]: newVal }).eq('id', appSettings?.id);
                                   } catch (err) {
                                     console.error('Gagal update visibilitas', err);
                                   }
@@ -2827,12 +3003,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
               {settingTab === 'reset' && (
                 <div className="animate-in fade-in">
                   <h2 className="text-2xl font-bold text-slate-800 mb-2">Reset Data Sistem</h2>
-                  <p className="text-slate-500 text-sm mb-8">Fitur ini digunakan untuk menghapus semua riwayat transaksi, jurnal, dan laporan keuangan.</p>
+                  <p className="text-slate-500 text-sm mb-2">Fitur ini digunakan untuk menghapus semua riwayat transaksi, jurnal, dan laporan keuangan.</p>
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6 text-sm text-amber-700">
+                    <strong>⚠️ Penting:</strong> Setelah reset dari sini, pastikan Bapak juga sudah menjalankan SQL TRUNCATE di Supabase agar data cloud ikut bersih. Data akan kosong setelah halaman dimuat ulang.
+                  </div>
                   <button onClick={() => {
                     if(window.confirm('PERINGATAN: Anda yakin ingin mereset SELURUH data sistem, konfigurasi, dan riwayat keuangan? Tindakan ini tidak dapat dibatalkan.')) {
                       setKasEntries([]);
                       setJournals([]);
-                      localStorage.clear();
+                      // Hapus semua cache data transaksi dari localStorage
+                      const keysToRemove = [
+                        'admin_notifications',
+                        'dkm_surat_menyurat',
+                        'heroSlides_preview',
+                        'kasEntries',
+                        'donasiHistory',
+                        'journals',
+                        'programs_cache',
+                      ];
+                      keysToRemove.forEach(k => localStorage.removeItem(k));
+                      // Pertahankan kunci login & pengurus
                       alert('Seluruh data sistem berhasil direset. Aplikasi akan dimuat ulang.');
                       window.location.reload();
                     }
@@ -3315,6 +3505,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
                 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
+                    <label className="block text-slate-600 text-sm font-bold mb-2">Kota (Sistem Jadwal API)</label>
+                    <input type="text" value={tvConfig.city} onChange={e => setTvConfig({...tvConfig, city: e.target.value})} placeholder="Contoh: Bogor" className="w-full bg-slate-50 border border-slate-300 text-slate-800 rounded-lg px-4 py-2.5 font-bold focus:outline-none focus:border-lime-600" />
+                  </div>
+                  <div>
+                    <label className="block text-slate-600 text-sm font-bold mb-2">Negara</label>
+                    <input type="text" value={tvConfig.country} onChange={e => setTvConfig({...tvConfig, country: e.target.value})} placeholder="Contoh: Indonesia" className="w-full bg-slate-50 border border-slate-300 text-slate-800 rounded-lg px-4 py-2.5 font-bold focus:outline-none focus:border-lime-600" />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
                     <label className="block text-slate-600 text-sm font-bold mb-2">Jeda Menuju Adzan (Menit)</label>
                     <input type="number" value={tvConfig.jedaAdzan} onChange={e => setTvConfig({...tvConfig, jedaAdzan: parseInt(e.target.value) || 0})} className="w-full bg-slate-50 border border-slate-300 text-slate-800 rounded-lg px-4 py-2.5 font-bold focus:outline-none focus:border-lime-600" />
                   </div>
@@ -3322,11 +3523,69 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
                     <label className="block text-slate-600 text-sm font-bold mb-2">Jeda Menuju Iqomah (Menit)</label>
                     <input type="number" value={tvConfig.jedaIqomah} onChange={e => setTvConfig({...tvConfig, jedaIqomah: parseInt(e.target.value) || 0})} className="w-full bg-slate-50 border border-slate-300 text-slate-800 rounded-lg px-4 py-2.5 font-bold focus:outline-none focus:border-lime-600" />
                   </div>
+                  <div>
+                    <label className="block text-slate-600 text-sm font-bold mb-2">Durasi Waktu Shalat (Menit)</label>
+                    <input type="number" value={tvConfig.jedaSholat} onChange={e => setTvConfig({...tvConfig, jedaSholat: parseInt(e.target.value) || 0})} className="w-full bg-slate-50 border border-slate-300 text-slate-800 rounded-lg px-4 py-2.5 font-bold focus:outline-none focus:border-lime-600" />
+                  </div>
                 </div>
 
                 <div>
-                  <label className="block text-slate-600 text-sm font-bold mb-2">Teks Berjalan (Marquee)</label>
-                  <textarea rows={4} value={tvConfig.runningText} onChange={e => setTvConfig({...tvConfig, runningText: e.target.value})} className="w-full bg-slate-50 border border-slate-300 text-slate-800 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-lime-600"></textarea>
+                  <label className="block text-slate-600 text-sm font-bold mb-2">Teks Berjalan (Marquee Utama)</label>
+                  <textarea rows={2} value={tvConfig.runningText} onChange={e => setTvConfig({...tvConfig, runningText: e.target.value})} className="w-full bg-slate-50 border border-slate-300 text-slate-800 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-lime-600"></textarea>
+                </div>
+              </div>
+
+              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-5">
+                <h3 className="font-bold text-slate-800 text-lg border-b pb-3">Teks Dinamis & Pengingat</h3>
+                
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3">
+                    <input type="checkbox" id="showImsak" checked={tvConfig.showImsak} onChange={e => setTvConfig({...tvConfig, showImsak: e.target.checked})} className="w-5 h-5 rounded border-slate-300 text-lime-600" />
+                    <label htmlFor="showImsak" className="font-bold text-slate-700">Tampilkan Pengingat Waktu Imsak</label>
+                  </div>
+                  {tvConfig.showImsak && (
+                    <input type="text" value={tvConfig.textImsak} onChange={e => setTvConfig({...tvConfig, textImsak: e.target.value})} className="w-full bg-slate-50 border border-slate-300 text-slate-800 rounded-lg px-4 py-2 ml-8 text-sm focus:outline-none focus:border-lime-600" />
+                  )}
+
+                  <div className="flex items-center gap-3">
+                    <input type="checkbox" id="showBukaPuasa" checked={tvConfig.showBukaPuasa} onChange={e => setTvConfig({...tvConfig, showBukaPuasa: e.target.checked})} className="w-5 h-5 rounded border-slate-300 text-lime-600" />
+                    <label htmlFor="showBukaPuasa" className="font-bold text-slate-700">Tampilkan Pengingat Waktu Buka Puasa</label>
+                  </div>
+                  {tvConfig.showBukaPuasa && (
+                    <input type="text" value={tvConfig.textBukaPuasa} onChange={e => setTvConfig({...tvConfig, textBukaPuasa: e.target.value})} className="w-full bg-slate-50 border border-slate-300 text-slate-800 rounded-lg px-4 py-2 ml-8 text-sm focus:outline-none focus:border-lime-600" />
+                  )}
+
+                  <div className="flex items-center gap-3">
+                    <input type="checkbox" id="showTarawih" checked={tvConfig.showTarawih} onChange={e => setTvConfig({...tvConfig, showTarawih: e.target.checked})} className="w-5 h-5 rounded border-slate-300 text-lime-600" />
+                    <label htmlFor="showTarawih" className="font-bold text-slate-700">Tampilkan Pengingat Shalat Tarawih</label>
+                  </div>
+                  {tvConfig.showTarawih && (
+                    <input type="text" value={tvConfig.textTarawih} onChange={e => setTvConfig({...tvConfig, textTarawih: e.target.value})} className="w-full bg-slate-50 border border-slate-300 text-slate-800 rounded-lg px-4 py-2 ml-8 text-sm focus:outline-none focus:border-lime-600" />
+                  )}
+
+                  <div className="flex items-center gap-3">
+                    <input type="checkbox" id="showJumat" checked={tvConfig.showJumat} onChange={e => setTvConfig({...tvConfig, showJumat: e.target.checked})} className="w-5 h-5 rounded border-slate-300 text-lime-600" />
+                    <label htmlFor="showJumat" className="font-bold text-slate-700">Tampilkan Pengingat Harap Tenang Khutbah Jumat</label>
+                  </div>
+                  {tvConfig.showJumat && (
+                    <input type="text" value={tvConfig.textJumat} onChange={e => setTvConfig({...tvConfig, textJumat: e.target.value})} className="w-full bg-slate-50 border border-slate-300 text-slate-800 rounded-lg px-4 py-2 ml-8 text-sm focus:outline-none focus:border-lime-600" />
+                  )}
+
+                  <div className="flex items-center gap-3">
+                    <input type="checkbox" id="showIdulFitri" checked={tvConfig.showIdulFitri} onChange={e => setTvConfig({...tvConfig, showIdulFitri: e.target.checked})} className="w-5 h-5 rounded border-slate-300 text-lime-600" />
+                    <label htmlFor="showIdulFitri" className="font-bold text-slate-700">Tampilkan Pengingat Idul Fitri</label>
+                  </div>
+                  {tvConfig.showIdulFitri && (
+                    <input type="text" value={tvConfig.textIdulFitri} onChange={e => setTvConfig({...tvConfig, textIdulFitri: e.target.value})} className="w-full bg-slate-50 border border-slate-300 text-slate-800 rounded-lg px-4 py-2 ml-8 text-sm focus:outline-none focus:border-lime-600" />
+                  )}
+
+                  <div className="flex items-center gap-3">
+                    <input type="checkbox" id="showIdulAdha" checked={tvConfig.showIdulAdha} onChange={e => setTvConfig({...tvConfig, showIdulAdha: e.target.checked})} className="w-5 h-5 rounded border-slate-300 text-lime-600" />
+                    <label htmlFor="showIdulAdha" className="font-bold text-slate-700">Tampilkan Pengingat Idul Adha</label>
+                  </div>
+                  {tvConfig.showIdulAdha && (
+                    <input type="text" value={tvConfig.textIdulAdha} onChange={e => setTvConfig({...tvConfig, textIdulAdha: e.target.value})} className="w-full bg-slate-50 border border-slate-300 text-slate-800 rounded-lg px-4 py-2 ml-8 text-sm focus:outline-none focus:border-lime-600" />
+                  )}
                 </div>
               </div>
 
@@ -3343,20 +3602,68 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
                 </div>
 
                 {tvConfig.mediaType !== 'background' && (
-                  <div>
-                    <label className="block text-slate-600 text-sm font-bold mb-2">URL Media / Embed Link</label>
-                    <input type="text" placeholder={tvConfig.mediaType === 'youtube' ? 'Contoh: https://www.youtube.com/embed/LIVE_ID' : 'Contoh: http://camera-ip/stream'} value={tvConfig.mediaUrl} onChange={e => setTvConfig({...tvConfig, mediaUrl: e.target.value})} className="w-full bg-slate-50 border border-slate-300 text-slate-800 rounded-lg px-4 py-2.5 font-semibold focus:outline-none focus:border-lime-600" />
-                    <p className="text-xs text-slate-500 mt-2">
-                      {tvConfig.mediaType === 'youtube' 
-                        ? 'Pastikan URL menggunakan format embed Youtube agar dapat diputar langsung di layar TV.' 
-                        : 'Pastikan URL stream CCTV dapat diakses langsung tanpa autentikasi.'}
-                    </p>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-slate-600 text-sm font-bold mb-2">URL Media / Embed Link</label>
+                      <input 
+                        type="text" 
+                        placeholder={tvConfig.mediaType === 'youtube' ? 'Contoh: https://www.youtube.com/embed/LIVE_ID' : 'Contoh: http://camera-ip/stream'} 
+                        value={tvConfig.mediaUrl} 
+                        onChange={e => setTvConfig({...tvConfig, mediaUrl: e.target.value})} 
+                        className="w-full bg-slate-50 border border-slate-300 text-slate-800 rounded-lg px-4 py-2.5 font-semibold focus:outline-none focus:border-lime-600 disabled:opacity-50 disabled:bg-slate-200" 
+                        disabled={tvConfig.mediaType === 'youtube' && adminRole !== 'direktur'}
+                      />
+                      {tvConfig.mediaType === 'youtube' && adminRole !== 'direktur' && (
+                        <p className="text-xs text-red-500 font-bold mt-1">Hanya Super Admin (Direktur) yang dapat mengubah link YouTube untuk keamanan.</p>
+                      )}
+                      <p className="text-xs text-slate-500 mt-2">
+                        {tvConfig.mediaType === 'youtube' 
+                          ? 'Pastikan URL menggunakan format embed Youtube agar dapat diputar langsung di layar TV.' 
+                          : 'Pastikan URL stream CCTV dapat diakses langsung tanpa autentikasi.'}
+                      </p>
+                    </div>
+                    {tvConfig.mediaType === 'youtube' && (
+                      <div>
+                        <label className="block text-slate-600 text-sm font-bold mb-2">Suara YouTube</label>
+                        <select value={tvConfig.volume || 0} onChange={e => setTvConfig({...tvConfig, volume: parseInt(e.target.value)})} className="w-full bg-slate-50 border border-slate-300 text-slate-800 rounded-lg px-4 py-2.5 font-semibold focus:outline-none focus:border-lime-600">
+                          <option value={0}>Bisukan (Muted)</option>
+                          <option value={1}>Aktifkan Suara</option>
+                        </select>
+                        <p className="text-xs text-slate-500 mt-1">Aktifkan suara jika kajian sedang berlangsung.</p>
+                      </div>
+                    )}
                   </div>
                 )}
 
                 <div className="pt-4">
-                  <button onClick={() => {
-                    alert('Konfigurasi TV Display berhasil disimpan!');
+                  <button onClick={async () => {
+                    const payload = {
+                      tv_timezone: tvConfig.timezone,
+                      tv_jeda_adzan: tvConfig.jedaAdzan,
+                      tv_jeda_iqomah: tvConfig.jedaIqomah,
+                      tv_jeda_sholat: tvConfig.jedaSholat,
+                      tv_running_text: tvConfig.runningText,
+                      tv_media_type: tvConfig.mediaType,
+                      tv_media_url: tvConfig.mediaUrl,
+                      tv_volume: tvConfig.volume,
+                      show_imsak: tvConfig.showImsak,
+                      show_buka_puasa: tvConfig.showBukaPuasa,
+                      show_tarawih: tvConfig.showTarawih,
+                      show_jumat: tvConfig.showJumat,
+                      show_idul_fitri: tvConfig.showIdulFitri,
+                      show_idul_adha: tvConfig.showIdulAdha,
+                      text_imsak: tvConfig.textImsak,
+                      text_buka_puasa: tvConfig.textBukaPuasa,
+                      text_tarawih: tvConfig.textTarawih,
+                      text_jumat: tvConfig.textJumat,
+                      text_idul_fitri: tvConfig.textIdulFitri,
+                      text_idul_adha: tvConfig.textIdulAdha,
+                      tv_city: tvConfig.city,
+                      tv_country: tvConfig.country
+                    };
+                    await supabase.from('app_settings').update(payload).eq('id', appSettings?.id);
+                    setAppSettings(prev => ({ ...prev, ...payload }));
+                    alert('Konfigurasi TV Display berhasil disimpan ke server!');
                   }} className="w-full px-6 py-3 bg-lime-600 hover:bg-lime-700 text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2 shadow-lg">
                     <Save className="w-5 h-5" /> Simpan Konfigurasi TV
                   </button>
@@ -3672,15 +3979,23 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
                                   className="w-5 h-5 accent-lime-600 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                                   checked={isChecked}
                                   disabled={isLocked}
-                                  onChange={(e) => {
+                                  onChange={async (e) => {
                                     const checked = e.target.checked;
-                                    setRolePermissions(prev => {
-                                      const current = prev[role] || [];
-                                      return {
-                                        ...prev,
-                                        [role]: checked ? [...current, cat.id] : current.filter(id => id !== cat.id)
-                                      };
-                                    });
+                                    
+                                    const current = rolePermissions[role] || [];
+                                    const newPerms = checked ? [...current, cat.id] : current.filter(id => id !== cat.id);
+                                    
+                                    setRolePermissions(prev => ({ ...prev, [role]: newPerms }));
+                                    
+                                    // Update to Supabase
+                                    const dbPerms = {
+                                      keuangan: newPerms.includes('keuangan'),
+                                      operasional: newPerms.includes('operasional'),
+                                      administrasi: newPerms.includes('administrasi'),
+                                      pengaturan: newPerms.includes('pengaturan_grup')
+                                    };
+                                    await supabase.from('admin_role_permissions')
+                                      .upsert({ role: role, permissions: dbPerms }, { onConflict: 'role' });
                                   }}
                                 />
                               </td>
@@ -3754,7 +4069,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
               <div className="bg-white rounded-2xl p-4 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-3 border border-slate-200">
                 <div>
                   <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-slate-100 text-slate-600 text-xs font-bold uppercase tracking-wider mb-1.5 border border-slate-200">
-                    ðŸ“Š Modul Akuntansi Standar PSAK 409
+                    💼 Modul Akuntansi Standar PSAK 409
                   </span>
                   <h2 className="text-lg font-extrabold text-slate-800 leading-none">Fitur Laporan Keuangan & Akuntansi Masjid</h2>
                   <p className="text-slate-500 text-[11px] mt-1.5 max-w-3xl leading-snug">
@@ -4426,8 +4741,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
                       alert('Berhasil! Pengguna baru telah tersimpan ke Database Supabase.');
                     } else {
                       alert('Gagal menambah pengguna ke Supabase: ' + (error?.message || 'Unknown error'));
-                      // Fallback simulasi
-                      setAkunPenggunaList(prev => [{...akunPenggunaFormData, id: Math.random().toString(), d: new Date().toLocaleDateString('id-ID')}, ...prev]);
                     }
                   } else {
                     // Update Existing
@@ -4467,49 +4780,71 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-bold text-slate-700 mb-1">Nama Lengkap & Gelar <span className="text-red-500">*</span></label>
-                  <input type="text" value={profilFormData.name} onChange={e => setProfilFormData({...profilFormData, name: e.target.value})} placeholder="Contoh: Ustadz H. M. Zainuddin, SQ" className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl text-slate-800 focus:outline-none focus:border-lime-500 text-sm" required />
+                  <input type="text" value={profilFormData.nama} onChange={e => setProfilFormData({...profilFormData, nama: e.target.value})} placeholder="Contoh: Ustadz H. M. Zainuddin, SQ" className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl text-slate-800 focus:outline-none focus:border-lime-500 text-sm" required />
                 </div>
                 <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-1">Jabatan <span className="text-red-500">*</span></label>
-                  <input type="text" value={profilFormData.role} onChange={e => setProfilFormData({...profilFormData, role: e.target.value})} placeholder="Contoh: Ketua / Direktur DKM" className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl text-slate-800 focus:outline-none focus:border-lime-500 text-sm" required />
+                  <label className="block text-sm font-bold text-slate-700 mb-1">Jabatan / Role <span className="text-red-500">*</span></label>
+                  <input type="text" value={profilFormData.jabatan} onChange={e => setProfilFormData({...profilFormData, jabatan: e.target.value})} placeholder="Contoh: Ketua DKM" className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl text-slate-800 focus:outline-none focus:border-lime-500 text-sm font-bold" required />
                 </div>
                 <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-1">Kategori Tag <span className="text-red-500">*</span></label>
-                  <select value={profilFormData.tag} onChange={e => setProfilFormData({...profilFormData, tag: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl text-slate-800 focus:outline-none focus:border-lime-500 text-sm font-bold cursor-pointer">
-                    <option value="PEMBINA">Dewan Pembina</option>
-                    <option value="PENGURUS">Pengurus Inti</option>
-                    <option value="STAF">Staf Operasional</option>
-                  </select>
+                  <label className="block text-sm font-bold text-slate-700 mb-1">Biodata Singkat</label>
+                  <textarea value={profilFormData.biodata} onChange={e => setProfilFormData({...profilFormData, biodata: e.target.value})} placeholder="Tuliskan profil atau latar belakang singkat..." className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl text-slate-800 focus:outline-none focus:border-lime-500 text-sm h-24" />
                 </div>
                 <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-1">Foto Profil</label>
+                  <label className="block text-sm font-bold text-slate-700 mb-1">Urutan Tampil (Opsional)</label>
+                  <input type="number" value={profilFormData.urutan} onChange={e => setProfilFormData({...profilFormData, urutan: Number(e.target.value)})} placeholder="Contoh: 1" className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl text-slate-800 focus:outline-none focus:border-lime-500 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-1">Foto Profil (Bisa upload)</label>
                   <input type="file" accept="image/*" onChange={(e) => {
                     const file = e.target.files?.[0];
                     if (file) {
                       const reader = new FileReader();
                       reader.onloadend = () => {
-                        setProfilFormData(prev => ({...prev, img: reader.result as string}));
+                        setProfilFormData(prev => ({...prev, foto_url: reader.result as string}));
                       };
                       reader.readAsDataURL(file);
                     }
                   }} className="w-full p-2 bg-slate-50 border border-slate-300 rounded-xl text-slate-800 text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-lime-50 file:text-lime-700 hover:file:bg-lime-100 cursor-pointer" />
-                  {profilFormData.img && <img src={profilFormData.img} className="mt-3 h-20 w-20 rounded-full border border-slate-200 object-cover shadow-md" alt="Preview" />}
+                  {profilFormData.foto_url && <img src={profilFormData.foto_url} className="mt-3 h-20 w-20 rounded-full border border-slate-200 object-cover shadow-md" alt="Preview" />}
                 </div>
               </div>
 
               <div className="mt-8 flex gap-3">
                 <button onClick={() => setShowProfilModal(false)} className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3 rounded-xl transition-colors cursor-pointer">Batal</button>
-                <button onClick={() => {
-                  if(!profilFormData.name || !profilFormData.role) {
+                <button onClick={async () => {
+                  if(!profilFormData.nama || !profilFormData.jabatan) {
                     return alert('Nama Lengkap dan Jabatan wajib diisi!');
                   }
                   
                   if(profilFormData.id === 0) {
-                    setPengurusList(prev => [...prev, {...profilFormData, id: Math.random() * 10000}]);
-                    alert('Profil baru berhasil ditambahkan!');
+                    const { data, error } = await supabase.from('masjid_pengurus_inti').insert([{
+                      nama: profilFormData.nama,
+                      jabatan: profilFormData.jabatan,
+                      biodata: profilFormData.biodata,
+                      foto_url: profilFormData.foto_url,
+                      urutan: profilFormData.urutan
+                    }]).select();
+                    if (!error && data) {
+                      setPengurusList(prev => [...prev, data[0]]);
+                      alert('Profil baru berhasil ditambahkan!');
+                    } else {
+                      alert('Gagal menambah profil ke Supabase: ' + error?.message);
+                    }
                   } else {
-                    setPengurusList(prev => prev.map(p => p.id === profilFormData.id ? profilFormData : p));
-                    alert('Profil berhasil diperbarui!');
+                    const { data, error } = await supabase.from('masjid_pengurus_inti').update({
+                      nama: profilFormData.nama,
+                      jabatan: profilFormData.jabatan,
+                      biodata: profilFormData.biodata,
+                      foto_url: profilFormData.foto_url,
+                      urutan: profilFormData.urutan
+                    }).eq('id', profilFormData.id).select();
+                    if (!error && data) {
+                      setPengurusList(prev => prev.map(p => p.id === profilFormData.id ? data[0] : p));
+                      alert('Profil berhasil diperbarui!');
+                    } else {
+                      alert('Gagal memperbarui profil ke Supabase: ' + error?.message);
+                    }
                   }
                   setShowProfilModal(false);
                 }} className="flex-1 bg-lime-600 hover:bg-lime-700 text-white font-bold py-3 rounded-xl transition-colors cursor-pointer">

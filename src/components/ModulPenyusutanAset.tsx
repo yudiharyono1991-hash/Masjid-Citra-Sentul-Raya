@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { toLocalDateString } from '../utils/formatters';
 import { supabase } from '../lib/supabase';
 import { Calculator, CheckCircle, TrendingDown, Save, AlertTriangle } from 'lucide-react';
 import { JurnalEntry } from '../data/akuntansiData';
@@ -74,7 +75,7 @@ export const ModulPenyusutanAset: React.FC<ModulPenyusutanAsetProps> = ({ onAuto
 
     const newJournal: JurnalEntry = {
       id: `JU-DEP-${Date.now()}`,
-      tanggal: new Date().toISOString().split('T')[0],
+      tanggal: toLocalDateString(),
       noBukti: `DEP-${aset.id.substring(0, 8)}`,
       keterangan: `Beban Penyusutan Bulan Ini: ${aset.nama}`,
       sumber: 'Modul Aset',
@@ -84,7 +85,7 @@ export const ModulPenyusutanAset: React.FC<ModulPenyusutanAsetProps> = ({ onAuto
       ],
       status: 'Posted',
       dibuatOleh: adminRole,
-      tanggalBuat: new Date().toISOString().split('T')[0],
+      tanggalBuat: toLocalDateString(),
     };
 
     onAutoPostJournal(newJournal);

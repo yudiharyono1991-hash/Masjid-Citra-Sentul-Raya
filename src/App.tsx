@@ -1,6 +1,7 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { Header } from './components/Header';
-import { Hero } from './components/Hero';
+import { Hero, HeroSlide } from './components/Hero';
+import { toLocalDateString } from './utils/formatters';
 import { DaftarProgram } from './components/DaftarProgram';
 import { JadwalShalatCard } from './components/JadwalShalatCard';
 import { KalenderKegiatan } from './components/KalenderKegiatan';
@@ -180,19 +181,23 @@ export default function App() {
         kontak_donatur: kontakDonatur || '-'
       }]);
 
-      // Add notifications to localStorage (no Supabase dependency)
-      const addLocalNotification = (role: string, title: string, message: string) => {
+      // Add notifications - try Supabase first (cross-device), fallback to localStorage
+      const addNotification = async (role: string, title: string, message: string) => {
         try {
-          const stored = localStorage.getItem('admin_notifications');
-          const existing = stored ? JSON.parse(stored) : [];
-          const newNotif = { id: `notif-${Date.now()}-${role}`, user_role: role, title, message, is_read: false, created_at: new Date().toISOString() };
-          const updated = [newNotif, ...existing].slice(0, 50);
-          localStorage.setItem('admin_notifications', JSON.stringify(updated));
-          window.dispatchEvent(new Event('storage'));
-        } catch {}
+          await supabase.from('notifications').insert([{ user_role: role, title, message, is_read: false }]);
+        } catch {
+          // Fallback to localStorage
+          try {
+            const stored = localStorage.getItem('admin_notifications');
+            const existing = stored ? JSON.parse(stored) : [];
+            const newNotif = { id: `notif-${Date.now()}-${role}`, user_role: role, title, message, is_read: false, created_at: new Date().toISOString() };
+            localStorage.setItem('admin_notifications', JSON.stringify([newNotif, ...existing].slice(0, 50)));
+            window.dispatchEvent(new Event('storage'));
+          } catch {}
+        }
       };
-      addLocalNotification('bendahara', 'Donasi Baru (Menunggu Verifikasi)', `Terdapat donasi baru dari ${namaDonatur || 'Hamba Allah'} sebesar Rp ${nominal.toLocaleString('id-ID')} untuk program ${program.judul}.`);
-      addLocalNotification('direktur', 'Donasi Baru Masuk', `Terdapat donasi baru dari ${namaDonatur || 'Hamba Allah'} sebesar Rp ${nominal.toLocaleString('id-ID')}.`);
+      await addNotification('bendahara', 'Donasi Baru (Menunggu Verifikasi)', `Terdapat donasi baru dari ${namaDonatur || 'Hamba Allah'} sebesar Rp ${nominal.toLocaleString('id-ID')} untuk program ${program.judul}.`);
+      await addNotification('direktur', 'Donasi Baru Masuk', `Terdapat donasi baru dari ${namaDonatur || 'Hamba Allah'} sebesar Rp ${nominal.toLocaleString('id-ID')}.`);
     } catch (err) {
       console.error('Failed to insert donation to Supabase', err);
     }
@@ -249,7 +254,7 @@ export default function App() {
           }
         }
 
-        const tanggalKini = new Date().toISOString().split('T')[0];
+        const tanggalKini = toLocalDateString();
         const keterangan = `Penerimaan Donasi ${prog?.judul || 'ZISWAF'} a.n ${donation.namaDonatur || 'Hamba Allah'}`;
 
         // 1. Insert ke tabel pemasukan (Riwayat Kas)
@@ -304,7 +309,7 @@ export default function App() {
     const fetchData = async () => {
       try {
         // 0. Fetch App Settings for Visibility Toggles
-        const { data: settingsData, error: settingsErr } = await supabase.from('app_settings').select('*').eq('id', 1).maybeSingle();
+        const { data: settingsData, error: settingsErr } = await supabase.from('app_settings').select('*').maybeSingle();
         if (!settingsErr && settingsData) {
           setHomeVisibility({
             showJadwal: settingsData.show_jadwal ?? true,
@@ -331,14 +336,18 @@ export default function App() {
             namaDonatur: d.nama_donatur,
             kontakDonatur: d.kontak_donatur
           }));
-          if (formattedDonasi.length > 0) {
-             setDonasiHistory(formattedDonasi);
-          }
+          setDonasiHistory(formattedDonasi); // Always update, including when empty (reset)
+        } else if (!donasiErr) {
+          setDonasiHistory([]); // Clear if Supabase returns empty
         }
 
         // 2. Fetch Programs and synchronize live totals
         const { data: programsData, error: progErr } = await supabase.from('programs').select('*').order('id');
-        if (!progErr && programsData && programsData.length > 0) {
+        if (!progErr && programsData) {
+          if (programsData.length === 0) {
+            // Database was reset — clear program state
+            setPrograms([]);
+          } else {
           const formattedPrograms = programsData.map((p: any) => {
             const programDonations = formattedDonasi.filter(d => d.programId === p.id && d.status === 'Berhasil');
             const totalTerkumpul = programDonations.reduce((sum, d) => sum + d.nominal, 0);
@@ -375,6 +384,7 @@ export default function App() {
             };
           });
           setPrograms(formattedPrograms);
+          }
         }
 
         // Fetch Jamaah

@@ -120,7 +120,16 @@ export const DaftarProgram: React.FC<DaftarProgramProps> = ({ programs, onDonate
               </div>
               <div className="p-6 flex-grow flex flex-col">
                 <h3 className="text-xl font-bold text-slate-900 mb-2 font-serif">{prog.judul}</h3>
-                <p className="text-slate-600 text-sm mb-6 flex-grow">{prog.deskripsi}</p>
+                <p className="text-slate-600 text-sm mb-6 flex-grow">
+                  {(() => {
+                    try {
+                      const parsed = JSON.parse(prog.deskripsi);
+                      return parsed.desc || prog.deskripsi;
+                    } catch {
+                      return prog.deskripsi;
+                    }
+                  })()}
+                </p>
                 
                 <div className="space-y-4">
                   <div>

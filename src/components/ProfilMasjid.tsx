@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { supabase } from '../lib/supabase';
 import {
   Building,
   Users,
@@ -12,6 +13,25 @@ import {
 } from 'lucide-react';
 
 export const ProfilMasjid: React.FC = () => {
+  const [pengurus, setPengurus] = useState<any[]>([]);
+
+  useEffect(() => {
+    const fetchPengurus = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('masjid_pengurus_inti')
+          .select('*')
+          .order('urutan', { ascending: true });
+        
+        if (data) {
+          setPengurus(data);
+        }
+      } catch (e) {
+        console.error('Failed to fetch pengurus:', e);
+      }
+    };
+    fetchPengurus();
+  }, []);
   const fasilitas = [
     {
       title: 'Ruang Shalat Utama',
@@ -120,6 +140,42 @@ export const ProfilMasjid: React.FC = () => {
             })}
           </div>
         </div>
+        {/* Pengurus Grid */}
+        {pengurus.length > 0 && (
+          <div className="space-y-6 pt-12 border-t border-lime-200">
+            <div className="text-center max-w-2xl mx-auto space-y-2">
+              <h3 className="text-2xl font-black text-slate-900">
+                Susunan Pengurus DKM
+              </h3>
+              <p className="text-slate-600 text-sm">
+                Dewan kemakmuran masjid yang mengelola dan melayani jamaah.
+              </p>
+            </div>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              {pengurus.map((p, i) => (
+                <div key={i} className="bg-white rounded-3xl border border-slate-200 p-6 flex flex-col items-center text-center hover:border-lime-400 hover:shadow-xl transition-all group">
+                  {p.foto_url ? (
+                    <img src={p.foto_url} alt={p.nama} className="w-24 h-24 rounded-full object-cover mb-4 border-4 border-lime-100 group-hover:scale-110 transition-transform shadow-md" />
+                  ) : (
+                    <div className="w-24 h-24 bg-lime-100 text-lime-700 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform shadow-md">
+                      <Users className="w-10 h-10" />
+                    </div>
+                  )}
+                  <h4 className="font-bold text-slate-900 text-lg mb-1">{p.nama}</h4>
+                  <div className="px-3 py-1 bg-lime-100 text-lime-800 text-xs font-bold rounded-full uppercase tracking-wider mb-3">
+                    {p.jabatan || 'Pengurus'}
+                  </div>
+                  {p.biodata && (
+                    <p className="text-sm text-slate-600 line-clamp-4">
+                      {p.biodata}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

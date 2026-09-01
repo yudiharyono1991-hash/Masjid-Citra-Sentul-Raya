@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Bot, User, Sun, Moon, Sparkles, BookOpen } from 'lucide-react';
-import { getPrayerTimesSentul, getNextPrayerInfo } from '../utils/prayerTimes';
+import { getPrayerTimesSentul, getNextPrayerInfo, fetchPrayerTimesOnline } from '../utils/prayerTimes';
+import { JadwalWaktu } from '../types';
 
 interface HeaderProps {
   onLoginClick: () => void;
@@ -29,10 +30,17 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [activeSection, setActiveSection] = useState('home');
-  const prayerTimes = getPrayerTimesSentul();
+  const [prayerTimes, setPrayerTimes] = useState<JadwalWaktu>(getPrayerTimesSentul());
+  const [hijriDate, setHijriDate] = useState<string>('');
   const nextPrayer = getNextPrayerInfo(prayerTimes);
 
   useEffect(() => {
+    // Initial fetch from API
+    fetchPrayerTimesOnline().then(res => {
+      setPrayerTimes(res.jadwal);
+      setHijriDate(res.hijri);
+    });
+    
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
@@ -44,7 +52,7 @@ export const Header: React.FC<HeaderProps> = ({
           setActiveSection(entry.target.id);
         }
       });
-    }, { threshold: 0.3, rootMargin: '-100px 0px -100px 0px' });
+    }, { threshold: 0.1, rootMargin: '-20% 0px -70% 0px' });
 
     const sectionIds = ['home', 'kalender', 'ziswaf', 'tentang', 'kontak'];
     // Use a small delay to ensure DOM is ready
@@ -109,6 +117,7 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
 
           <div className="flex gap-4 items-center">
+            {hijriDate && <span className="text-lime-200 hidden md:inline">{hijriDate}</span>}
             <span>Kiblat: 295°</span>
             <span className="font-bold font-mono">{timeString}</span>
             <span className={`px-2.5 py-0.5 rounded-md font-bold ${
