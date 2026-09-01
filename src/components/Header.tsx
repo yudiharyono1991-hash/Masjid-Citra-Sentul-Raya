@@ -52,25 +52,39 @@ export const Header: React.FC<HeaderProps> = ({
   }, []);
 
   useEffect(() => {
-    const observer = new IntersectionObserver((entries) => {
-      entries.forEach((entry) => {
-        if (entry.isIntersecting) {
-          setActiveSection(entry.target.id);
-        }
-      });
-    }, { threshold: 0.1, rootMargin: '-20% 0px -70% 0px' });
+    const handleScrollEvent = () => {
+      const sectionIds = ['home', 'kalender', 'ziswaf', 'tentang', 'kontak'];
+      
+      // If at top of page, set to home
+      if (window.scrollY < 100) {
+        setActiveSection('home');
+        return;
+      }
 
-    const sectionIds = ['home', 'kalender', 'ziswaf', 'tentang', 'kontak'];
-    // Use a small delay to ensure DOM is ready
-    setTimeout(() => {
-      sectionIds.forEach((id) => {
+      let currentSection = activeSection;
+      
+      for (const id of sectionIds) {
         const el = document.getElementById(id);
-        if (el) observer.observe(el);
-      });
-    }, 500);
+        if (el) {
+          const rect = el.getBoundingClientRect();
+          // Check if element is in upper half of viewport
+          if (rect.top <= window.innerHeight * 0.4 && rect.bottom >= window.innerHeight * 0.2) {
+            currentSection = id;
+          }
+        }
+      }
+      
+      if (currentSection !== activeSection) {
+        setActiveSection(currentSection);
+      }
+    };
 
-    return () => observer.disconnect();
-  }, []);
+    window.addEventListener('scroll', handleScrollEvent, { passive: true });
+    // Initial check
+    setTimeout(handleScrollEvent, 500);
+
+    return () => window.removeEventListener('scroll', handleScrollEvent);
+  }, [activeSection]);
 
   const timeString = currentTime.toLocaleTimeString('id-ID', {
     hour: '2-digit',

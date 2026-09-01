@@ -1,19 +1,29 @@
 import React, { useState, useEffect } from 'react';
 import { Clock, Calendar, MapPin, Volume2, VolumeX, Compass } from 'lucide-react';
-import { getPrayerTimesSentul, getHijriDateIndo, getNextPrayerInfo } from '../utils/prayerTimes';
+import { getPrayerTimesSentul, getHijriDateIndo, getNextPrayerInfo, fetchPrayerTimesOnline } from '../utils/prayerTimes';
+import type { JadwalWaktu } from '../types';
 
 export const JadwalShalatCard: React.FC = () => {
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
   const [isAudioMuted, setIsAudioMuted] = useState(false);
 
+  const [jadwal, setJadwal] = useState<JadwalWaktu>(getPrayerTimesSentul(currentTime));
+  const [hijriDate, setHijriDate] = useState<string>(getHijriDateIndo());
+
   useEffect(() => {
+    // Initial fetch from API
+    fetchPrayerTimesOnline().then(res => {
+      setJadwal(res.jadwal);
+      setHijriDate(res.hijri);
+    }).catch(() => {
+      // Fallback is already set
+    });
+    
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
 
-  const jadwal = getPrayerTimesSentul(currentTime);
   const nextPrayer = getNextPrayerInfo(jadwal);
-  const hijriDate = getHijriDateIndo();
 
   const prayerList = [
     { name: 'Subuh', time: jadwal.subuh, icon: '🌌' },

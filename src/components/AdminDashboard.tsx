@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { LogOut, MonitorPlay, RefreshCw, Book, Calendar, Video, ShieldCheck, Settings, Users, Database, PlusCircle, Save, ArrowDownCircle, ArrowUpCircle, X, FileText, Camera, Megaphone, Clock, Smartphone, UserCheck, Key, Search, Link2, Trash2, Moon, BookOpen, Scale, ClipboardList, Edit, Wallet, TrendingUp, TrendingDown, Activity, Heart, Building, LayoutDashboard, ChevronDown, Upload, Bell, CheckCircle2, MessageSquare } from 'lucide-react';
+import { LogOut, MonitorPlay, RefreshCw, Book, Calendar, Video, ShieldCheck, Settings, Users, Database, PlusCircle, Save, ArrowDownCircle, ArrowUpCircle, X, Maximize, FileText, Camera, Megaphone, Clock, Smartphone, UserCheck, Key, Search, Link2, Trash2, Moon, BookOpen, Scale, ClipboardList, Edit, Wallet, TrendingUp, TrendingDown, Activity, Heart, Building, LayoutDashboard, ChevronDown, Upload, Bell, CheckCircle2, MessageSquare } from 'lucide-react';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import * as XLSX from 'xlsx';
@@ -126,6 +126,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
       const stored = localStorage.getItem('admin_notifications');
       if (stored) setNotifications(JSON.parse(stored));
     } catch {}
+  };
+
+  const toggleFullscreen = () => {
+    const elem = document.getElementById('tv-fullscreen-container');
+    if (!document.fullscreenElement) {
+      elem?.requestFullscreen().catch(err => {
+        console.error(`Error attempting to enable fullscreen: ${err.message}`);
+      });
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen();
+      }
+    }
   };
 
   const fetchNotificationsFromSupabase = async () => {
@@ -1396,7 +1409,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
     };
 
     return (
-      <div className="fixed inset-0 bg-black z-50 flex flex-col text-slate-800 font-sans overflow-y-auto">
+      <div id="tv-fullscreen-container" className="fixed inset-0 bg-black z-[9999] flex flex-col text-slate-800 font-sans overflow-y-auto">
         <div className="flex-1 flex flex-col items-center justify-center relative p-8 min-h-screen">
           {!isCountdownAdzan && !isCountdownIqomah && !isWaktuSholat && tvConfig.mediaType === 'youtube' && tvConfig.mediaUrl ? (
             <iframe src={`${getEmbedUrl(tvConfig.mediaUrl)}?autoplay=1&mute=${tvConfig.volume === 0 ? 1 : 0}&loop=1&controls=0`} className="absolute inset-0 w-[120%] h-[120%] -left-[10%] -top-[10%] pointer-events-none opacity-40 object-cover" allow="autoplay; encrypted-media" />
@@ -1407,9 +1420,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
           )}
           <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-transparent to-black/90 pointer-events-none"></div>
 
-          <button onClick={() => setShowDisplayTV(false)} className="absolute top-4 right-4 p-4 bg-white hover:bg-red-600 rounded-xl transition-colors opacity-30 hover:opacity-100 group z-50 shadow-xl border border-slate-300 hover:border-red-500 cursor-pointer">
-            <X className="w-8 h-8 group-hover:scale-110 transition-transform" />
-          </button>
+          <div className="absolute top-4 right-4 flex items-center gap-4 z-50">
+            <button onClick={toggleFullscreen} className="p-4 bg-white hover:bg-slate-200 rounded-xl transition-colors opacity-30 hover:opacity-100 group shadow-xl border border-slate-300 cursor-pointer" title="Layar Penuh (F11)">
+              <Maximize className="w-8 h-8 group-hover:scale-110 transition-transform" />
+            </button>
+            <button onClick={() => {
+              if (document.fullscreenElement) {
+                document.exitFullscreen();
+              }
+              setShowDisplayTV(false);
+            }} className="p-4 bg-white hover:bg-red-600 rounded-xl transition-colors opacity-30 hover:opacity-100 group shadow-xl border border-slate-300 hover:border-red-500 cursor-pointer" title="Tutup Layar TV">
+              <X className="w-8 h-8 group-hover:scale-110 transition-transform" />
+            </button>
+          </div>
           
           <div className="z-10 text-center w-full max-w-6xl">
             <h1 className="text-4xl md:text-6xl font-bold text-lime-600 mb-6 tracking-wider uppercase drop-shadow-lg">Masjid Citra Sentul Raya</h1>
