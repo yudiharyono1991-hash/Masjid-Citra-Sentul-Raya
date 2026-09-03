@@ -110,7 +110,14 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onOpenWakafModal }) 
 
         {/* Bottom copyright & Scroll to Top */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-lime-400">
-          <p>© 2026 Panitia Pembangunan Masjid Citra Sentul Raya. All Rights Reserved.</p>
+          <div className="space-y-1 text-center sm:text-left">
+            <p className="font-bold flex items-center gap-1.5 justify-center sm:justify-start">
+              <ShieldCheck className="w-3.5 h-3.5" /> © 2026 Masjid Citra Sentul Raya. All Rights Reserved.
+            </p>
+            <p className="text-[10px] text-lime-500/80 max-w-sm">
+              Hak Cipta Dilindungi Undang-Undang. Portal Sistem Informasi & ZISWAF Digital Resmi DKM Masjid Citra Sentul Raya.
+            </p>
+          </div>
 
           <button
             onClick={scrollToTop}

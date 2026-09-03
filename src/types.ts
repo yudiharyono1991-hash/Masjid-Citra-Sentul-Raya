@@ -8,6 +8,7 @@ export interface Muwakif {
   isHambaAllah: boolean;
   isVerified: boolean;
   metode: 'BSI' | 'QRIS' | 'Lainnya';
+  keterangan?: string;
 }
 
 export interface MilestonePembangunan {

@@ -53,6 +53,7 @@ interface AdminDashboardProps {
   donasiHistory?: any[];
   onVerifyDonasi?: (id: string, status: 'Berhasil' | 'Ditolak') => void;
   onAddDonasiHistoryItem?: (item: any) => void;
+  onDeleteDonasi?: (id: string) => void;
   adminRole?: string;
   auditLogs?: any[];
 }
@@ -103,7 +104,20 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
   }
 }
 
-export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs, onAddDonation, homeVisibility, setHomeVisibility, registeredJamaahList, donasiHistory = [], onVerifyDonasi, onAddDonasiHistoryItem, adminRole = 'direktur', auditLogs = [] }) => {
+export const AdminDashboard: React.FC<AdminDashboardProps> = ({ 
+  onBack, 
+  programs, 
+  onAddDonation, 
+  homeVisibility, 
+  setHomeVisibility, 
+  registeredJamaahList, 
+  donasiHistory = [], 
+  onVerifyDonasi, 
+  onAddDonasiHistoryItem, 
+  adminRole = 'direktur', 
+  auditLogs = [],
+  onDeleteDonasi
+}) => {
   const [activeMenu, setActiveMenu] = useState(() => {
     const p = new URLSearchParams(window.location.search);
     return p.get('menu') || 'utama';
@@ -112,6 +126,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
   const [donasiPage, setDonasiPage] = useState(1);
   const [jamaahPage, setJamaahPage] = useState(1);
   const [auditPage, setAuditPage] = useState(1);
+  const [verifikasiPage, setVerifikasiPage] = useState(1);
+  const todayLocal = new Date();
+  const firstOfMonthLocal = new Date(todayLocal.getFullYear(), todayLocal.getMonth(), 1);
+  
+  // Helper to format local date as YYYY-MM-DD to avoid UTC offset issues
+  const toLocalISODate = (d: Date) => {
+    const tzOffset = d.getTimezoneOffset() * 60000;
+    return new Date(d.getTime() - tzOffset).toISOString().split('T')[0];
+  };
+
+  const [filterVerifikasiStart, setFilterVerifikasiStart] = useState(toLocalISODate(firstOfMonthLocal));
+  const [filterVerifikasiEnd, setFilterVerifikasiEnd] = useState(toLocalISODate(todayLocal));
   const ITEMS_PER_PAGE = 10;
   const [kasTab, setKasTab] = useState('ringkasan');
   const [lapkeuTab, setLapkeuTab] = useState<'neraca' | 'jurnal' | 'bukubesar' | 'coa' | 'anggaran' | 'penyusutan'>('neraca');
@@ -399,28 +425,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
     } else {
       return true;
     }
-    const entryDate = new Date(Number(y), Number(m) - 1, Number(d)).getTime();
-    if (filter.start && entryDate < new Date(filter.start).getTime()) return false;
-    if (filter.end && entryDate > new Date(filter.end).setHours(23, 59, 59, 999)) return false;
+    const entryDate = new Date(Number(y), Number(m) - 1, Number(d), 12, 0, 0).getTime();
+    if (filter.start) {
+      const partsStart = filter.start.split('-');
+      const startLocal = new Date(Number(partsStart[0]), Number(partsStart[1]) - 1, Number(partsStart[2]), 0, 0, 0).getTime();
+      if (entryDate < startLocal) return false;
+    }
+    if (filter.end) {
+      const partsEnd = filter.end.split('-');
+      const endLocal = new Date(Number(partsEnd[0]), Number(partsEnd[1]) - 1, Number(partsEnd[2]), 23, 59, 59).getTime();
+      if (entryDate > endLocal) return false;
+    }
     return true;
   };
 
   const handleDeleteKas = async (id: any) => {
     if (window.confirm('Yakin ingin menghapus transaksi ini?')) {
-      const entryToDelete = kasEntries.find(e => e.id === id);
       setKasEntries(prev => prev.filter(e => e.id !== id));
       setJournals(prev => prev.filter(j => j.id !== id));
       try {
-        if (entryToDelete?.isNewTable) {
-           const prefix = entryToDelete.type === 'in' ? 'Pemasukan: ' : 'Pengeluaran: ';
-           if (entryToDelete.type === 'in') await supabase.from('pemasukan').delete().eq('id', id);
-           else await supabase.from('pengeluaran').delete().eq('id', id);
-           
-           // Best effort delete from jurnal_umum
-           await supabase.from('jurnal_umum').delete().eq('keterangan', `${prefix}${entryToDelete.desc}`);
-        } else {
-           await supabase.from('jurnal_umum').delete().eq('no_bukti', id);
-        }
+        await supabase.from('jurnal_umum').delete().ilike('id', `%${id}%`);
       } catch (err) { console.error(err); }
     }
   };
@@ -444,22 +468,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
         }));
         
         try {
-          if (entry.isNewTable) {
-             const prefix = entry.type === 'in' ? 'Pemasukan: ' : 'Pengeluaran: ';
-             if (entry.type === 'in') await supabase.from('pemasukan').update({ keterangan: newDesc, nominal: Number(newAmount) }).eq('id', entry.id);
-             else await supabase.from('pengeluaran').update({ keterangan: newDesc, nominal: Number(newAmount) }).eq('id', entry.id);
-             
-             // Best effort update jurnal_umum
-             const { data: lines } = await supabase.from('jurnal_umum').select('id, debit, kredit').eq('keterangan', `${prefix}${entry.desc}`);
-             if (lines) {
-                for (const line of lines) {
-                   const updateData: any = { keterangan: `${prefix}${newDesc}` };
-                   if (line.debit > 0) updateData.debit = Number(newAmount);
-                   if (line.kredit > 0) updateData.kredit = Number(newAmount);
-                   await supabase.from('jurnal_umum').update(updateData).eq('id', line.id);
-                }
-             }
-          } else {
              const { data: lines } = await supabase.from('jurnal_umum').select('id, debit, kredit').eq('no_bukti', entry.id);
              if (lines) {
                 for (const line of lines) {
@@ -469,7 +477,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
                    await supabase.from('jurnal_umum').update(updateData).eq('id', line.id);
                 }
              }
-          }
         } catch (err) { console.error(err); }
       }
     }
@@ -835,7 +842,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
           const formatted = coaData.map((d: any) => ({
             kode: d.kode,
             nama: d.nama,
-            jenis: d.kategori === 'Aset' ? 'Aktiva' : (d.kategori === 'Liabilitas' ? 'Kewajiban' : (d.kategori === 'Saldo Dana' ? 'Ekuitas' : (d.kategori === 'Penerimaan' ? 'Pendapatan' : 'Beban'))),
+            jenis: d.kategori === 'Aset' ? 'Aktiva' : (d.kategori === 'Liabilitas' ? 'Kewajiban' : (d.kategori === 'Saldo Dana' || d.kategori === 'Aset Bersih' ? 'Ekuitas' : (d.kategori === 'Penerimaan' || d.kategori === 'Pendapatan' ? 'Pendapatan' : 'Beban'))),
             kelompok: d.kelompok,
             saldoNormal: d.is_debit ? 'Debit' : 'Kredit',
             saldoAwal: Number(d.saldo) || 0,
@@ -873,10 +880,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
           const journalsArray = Array.from(grouped.values());
           setJournals(journalsArray);
           
-          // Generate kasEntries (Legacy extraction from jurnal_umum for older data)
+          // Generate kasEntries purely from jurnal_umum
           const kasListLegacy: any[] = [];
           journalsArray.forEach(j => {
-             const kasLine = j.baris.find(b => b.kodeAkun.startsWith('110') || b.kodeAkun.startsWith('1-10'));
+             const kasLine = j.baris.find(b => b.kodeAkun.startsWith('1-1'));
              if (kasLine) {
                 const dateFormatted = j.tanggal ? (j.tanggal.includes('/') ? j.tanggal : j.tanggal.split('-').reverse().join('/')) : '';
                 if (kasLine.debit > 0) {
@@ -887,59 +894,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
              }
           });
 
-          // Failsafe: Render legacy kas immediately to prevent UI from being empty if new fetch fails
-          setKasEntries(kasListLegacy);
-
-          try {
-             // Fetch new dedicated tables
-             const { data: dataPemasukan, error: errPemasukan } = await supabase.from('pemasukan').select('*');
-             const { data: dataPengeluaran, error: errPengeluaran } = await supabase.from('pengeluaran').select('*');
-             
-             let kasListNew: any[] = [];
-             if (!errPemasukan && !errPengeluaran && dataPemasukan && dataPengeluaran) {
-               kasListNew = [
-                 ...dataPemasukan.map((d: any) => ({
-                   id: d.id,
-                   date: d.tanggal ? d.tanggal.split('-').reverse().join('/') : '',
-                   desc: d.keterangan,
-                   type: 'in',
-                   amount: Number(d.nominal),
-                   isNewTable: true
-                 })),
-                 ...dataPengeluaran.map((d: any) => ({
-                   id: d.id,
-                   date: d.tanggal ? d.tanggal.split('-').reverse().join('/') : '',
-                   desc: d.keterangan,
-                   type: 'out',
-                   amount: Number(d.nominal),
-                   isNewTable: true
-                 }))
-               ];
+          kasListLegacy.sort((a, b) => {
+             const dateA = a.date.split('/').reverse().join('');
+             const dateB = b.date.split('/').reverse().join('');
+             if (dateA === dateB) {
+                return String(b.id).localeCompare(String(a.id));
              }
+             return dateB.localeCompare(dateA);
+          });
 
-             // Merge legacy and new
-             const combinedKasList = [...kasListNew];
-             kasListLegacy.forEach(legacy => {
-                // Check if it exists in new (heuristic matching)
-                const existsInNew = kasListNew.some(n => n.desc === legacy.desc && n.amount === legacy.amount && n.date === legacy.date && n.type === legacy.type);
-                if (!existsInNew) {
-                   combinedKasList.push(legacy);
-                }
-             });
-             
-             combinedKasList.sort((a, b) => {
-                const dateA = a.date.split('/').reverse().join('');
-                const dateB = b.date.split('/').reverse().join('');
-                if (dateA === dateB) {
-                   return String(b.id).localeCompare(String(a.id));
-                }
-                return dateB.localeCompare(dateA);
-             });
-
-             setKasEntries(combinedKasList);
-          } catch (e) {
-             console.error("Error fetching new tables, relying on legacy:", e);
-          }
+          setKasEntries(kasListLegacy);
         }
       } catch (err) {
         console.error('Error fetching jurnal_umum:', err);
@@ -969,9 +933,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
 
   const [namaDonaturStr, setNamaDonaturStr] = useState('');
   const [kontakDonaturStr, setKontakDonaturStr] = useState('');
-  const [ziswafTgl, setZiswafTgl] = useState(toLocalDateString());
+  const [selectedJamaahZiswaf, setSelectedJamaahZiswaf] = useState<string>('manual');
+  const [ziswafTgl, setZiswafTgl] = useState<string>(() => new Date().toISOString().split('T')[0]);
   const [ziswafBukti, setZiswafBukti] = useState<File | null>(null);
-  const [selectedJamaahZiswaf, setSelectedJamaahZiswaf] = useState('manual');
+  const [keteranganZiswaf, setKeteranganZiswaf] = useState<string>('');
 
   const handleJamaahZiswafChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const val = e.target.value;
@@ -992,8 +957,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
     e.preventDefault();
     const nominal = parseInt(nominalStr.replace(/\D/g, ''), 10);
     if (nominal && nominal > 0) {
-      onAddDonation(selectedProgram, nominal);
-      
       const progObj = programs.find(p => p.id === selectedProgram);
       const progTitle = progObj ? progObj.judul : 'Program ZISWAF';
       const isZakat = progTitle.toLowerCase().includes('zakat');
@@ -1008,11 +971,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
         id: `JU-ZIS-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
         tanggal: tanggal,
         noBukti: noBukti,
-        keterangan: `Penerimaan Donasi ZISWAF: ${progTitle} dari ${namaDonatur}`,
+        keterangan: `Penerimaan Donasi ZISWAF: ${progTitle} dari ${namaDonatur}. ${keteranganZiswaf}`,
         sumber: 'Donasi Umum',
         baris: [
-          { kodeAkun: isZakat ? '1104' : (isWakaf ? '1105' : '1106'), namaAkun: `Bank (Debit)`, debit: nominal, kredit: 0 },
-          { kodeAkun: isZakat ? '4106' : (isWakaf ? '4105' : '4103'), namaAkun: `Pendapatan Donasi (Kredit)`, debit: 0, kredit: nominal },
+          { kodeAkun: isZakat ? '1-10002' : (isWakaf ? '1-10002' : '1-10002'), namaAkun: `Bank (Debit)`, debit: nominal, kredit: 0 },
+          { kodeAkun: isZakat ? '4-20001' : (isWakaf ? '4-30001' : '4-10001'), namaAkun: `Pendapatan Donasi (Kredit)`, debit: 0, kredit: nominal },
         ],
         status: 'Posted',
         dibuatOleh: 'Admin Masjid (Form ZISWAF)',
@@ -1048,14 +1011,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
         ]);
         
         // Simpan ke tabel pemasukan (Riwayat Kas)
-        await supabase.from('pemasukan').insert([{
-           tanggal: tanggal,
-           keterangan: newJournal.keterangan,
-           nominal: nominal,
-           kategori: 'Penerimaan ZISWAF',
-           metode_pembayaran: 'Tunai / Admin',
-           dibuat_oleh: newJournal.dibuatOleh
-        }]);
+        const kasBaruId = `KM-ZIS-${Date.now()}`;
+        const tglStr = tanggal.includes('-') ? tanggal.split('-').reverse().join('/') : tanggal;
+        const entryKasLocal = {
+           id: kasBaruId,
+           date: tglStr,
+           desc: newJournal.keterangan,
+           type: 'in',
+           amount: nominal,
+           isNewTable: true
+        };
+        setKasEntries(prev => [entryKasLocal, ...prev]);
+
+
 
         // Simpan ke tabel donations (Riwayat Transaksi) dengan status Berhasil
         const donasiId = `INV-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
@@ -1081,7 +1049,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
 
         const donasiRecord = {
           id: donasiId,
-          tanggal: tanggalFormatted,
+          tanggal: tanggal,
           program_id: selectedProgram,
           program_name: progTitle,
           nominal,
@@ -1096,7 +1064,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
         if (onAddDonasiHistoryItem) {
           onAddDonasiHistoryItem({
             id: donasiId,
-            tanggal: tanggalFormatted,
+            tanggal: tanggal,
             programId: selectedProgram,
             programName: progTitle,
             nominal,
@@ -1104,7 +1072,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
             status: 'Berhasil',
             bukti: finalBuktiUrl,
             namaDonatur: namaDonatur,
-            kontakDonatur: kontakDonaturStr || '-'
+            kontakDonatur: kontakDonaturStr || '-',
+            keterangan: keteranganZiswaf
           });
         }
 
@@ -1159,19 +1128,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
       setJournals(prev => [newJournal, ...prev]);
       
       try {
-        const { data: insertedPemasukan } = await supabase.from('pemasukan').insert([{
-           tanggal: tanggal,
-           keterangan: descInput,
-           nominal: amountInput,
-           kategori: 'Pemasukan Kas',
-           metode_pembayaran: 'Tunai/Transfer',
-           dibuat_oleh: 'Admin Masjid'
-        }]).select();
-
-        if (insertedPemasukan && insertedPemasukan[0]) {
-           setKasEntries(prev => prev.map(e => e.id === newKas.id ? { ...e, id: insertedPemasukan[0].id, isNewTable: true } : e));
-        }
-
         await supabase.from('jurnal_umum').insert([
           {
             id: `JU-${Date.now()}-1`,
@@ -1240,19 +1196,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
       setJournals(prev => [newJournal, ...prev]);
       
       try {
-        const { data: insertedPengeluaran } = await supabase.from('pengeluaran').insert([{
-           tanggal: tanggal,
-           keterangan: descInput,
-           nominal: amountInput,
-           kategori: 'Pengeluaran Kas',
-           metode_pembayaran: 'Tunai/Transfer',
-           dibuat_oleh: 'Admin Masjid'
-        }]).select();
-
-        if (insertedPengeluaran && insertedPengeluaran[0]) {
-           setKasEntries(prev => prev.map(e => e.id === newKas.id ? { ...e, id: insertedPengeluaran[0].id, isNewTable: true } : e));
-        }
-
         await supabase.from('jurnal_umum').insert([
           {
             id: `JU-${Date.now()}-1`,
@@ -2296,6 +2239,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
                     </div>
                   </div>
                   <div>
+                    <label className="block text-xs font-bold text-slate-500 mb-1">Keterangan (Opsional)</label>
+                    <input 
+                      type="text"
+                      placeholder="Mis: Wakaf Alm. Bapak"
+                      value={keteranganZiswaf}
+                      onChange={(e) => setKeteranganZiswaf(e.target.value)}
+                      className="w-full p-2 text-sm bg-slate-50 border border-slate-300 rounded-lg text-slate-800 focus:outline-none focus:border-lime-600"
+                    />
+                  </div>
+                  <div>
                     <label className="block text-xs font-bold text-slate-500 mb-1">Upload Bukti Transfer (Opsional)</label>
                     <div className="border-2 border-dashed border-slate-300 rounded-lg p-3 text-center cursor-pointer hover:bg-slate-50 hover:border-lime-400 transition-colors" onClick={() => document.getElementById('ziswaf-bukti-upload')?.click()}>
                       <Upload className="w-5 h-5 text-slate-400 mx-auto mb-1" />
@@ -2446,9 +2399,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
         {activeMenu === 'verifikasi' && (
           <div className="animate-in fade-in space-y-6">
             <div className="bg-white p-6 rounded-xl border border-slate-200">
-              <div className="flex items-center gap-2 mb-6 border-b border-slate-200 pb-4">
-                <ShieldCheck className="w-6 h-6 text-lime-600" />
-                <h2 className="text-lg font-bold text-slate-800">Verifikasi Donasi ZISWAF Jamaah</h2>
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6 border-b border-slate-200 pb-4">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="w-6 h-6 text-lime-600" />
+                  <h2 className="text-lg font-bold text-slate-800">Verifikasi Donasi ZISWAF Jamaah</h2>
+                </div>
+                <div className="flex items-center gap-2 bg-slate-50 rounded-xl px-3 py-1.5 border border-slate-200">
+                  <span className="text-xs font-bold text-slate-700">Filter Tanggal:</span>
+                  <input type="date" value={filterVerifikasiStart} onChange={e => { setFilterVerifikasiStart(e.target.value); setVerifikasiPage(1); }} className="bg-transparent text-slate-700 font-medium text-xs focus:outline-none focus:ring-0" />
+                  <span className="text-xs font-bold text-slate-400">-</span>
+                  <input type="date" value={filterVerifikasiEnd} onChange={e => { setFilterVerifikasiEnd(e.target.value); setVerifikasiPage(1); }} className="bg-transparent text-slate-700 font-medium text-xs focus:outline-none focus:ring-0" />
+                </div>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm text-left whitespace-nowrap">
@@ -2464,8 +2425,27 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {donasiHistory.map(d => (
-                      <tr key={d.id} className="hover:bg-slate-50 transition-colors">
+                    {(() => {
+                      const filteredDonasi = (donasiHistory || []).filter(d => {
+                        if (!filterVerifikasiStart && !filterVerifikasiEnd) return true;
+                        const dDate = new Date(d.tanggal).getTime();
+                        if (filterVerifikasiStart && dDate < new Date(filterVerifikasiStart).getTime()) return false;
+                        if (filterVerifikasiEnd && dDate > new Date(filterVerifikasiEnd).setHours(23,59,59,999)) return false;
+                        return true;
+                      });
+                      
+                      const totalVerifikasiPages = Math.ceil(filteredDonasi.length / ITEMS_PER_PAGE);
+                      const paginatedDonasi = filteredDonasi.slice((verifikasiPage - 1) * ITEMS_PER_PAGE, verifikasiPage * ITEMS_PER_PAGE);
+                      
+                      return (
+                        <>
+                          {paginatedDonasi.length === 0 ? (
+                            <tr>
+                              <td colSpan={7} className="px-5 py-8 text-center text-slate-400 italic">Tidak ada donasi ZISWAF yang perlu diverifikasi pada rentang tanggal ini.</td>
+                            </tr>
+                          ) : (
+                            paginatedDonasi.map(d => (
+                              <tr key={d.id} className="hover:bg-slate-50 transition-colors">
                         <td className="px-5 py-4">
                           <p className="font-bold text-slate-800">{d.id}</p>
                           <p className="text-xs text-slate-500">{d.tanggal}</p>
@@ -2588,7 +2568,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
                                   if (contactMethod) {
                                     const phone = d.kontakDonatur.replace(/\D/g, '');
                                     const finalPhone = phone.startsWith('0') ? '62' + phone.substring(1) : phone;
-                                    const message = encodeURIComponent(`Assalamu'alaikum ${d.namaDonatur}, Terima kasih, donasi ZISWAF Anda untuk program *${d.programName}* sebesar *Rp${d.nominal.toLocaleString('id-ID')}* telah kami terima dan diverifikasi. Semoga menjadi amal jariyah.`);
+                                    const datePart = d.tanggal.replace(/\D/g, ''); // Extract just numbers from date for ref
+                                    
+                                    const keteranganText = d.keterangan ? `\n\n*Catatan Titipan/Amanah:*\n"${d.keterangan}"\n*(Insya Allah amanah ini telah kami catat dan peruntukan wakaf/infaq akan ditujukan sesuai dengan nama atau keterangan yang Bapak/Ibu sebutkan).*` : '';
+                                    const hadithText = `\n\n_"Perumpamaan orang-orang yang menafkahkan hartanya di jalan Allah adalah serupa dengan sebutir benih yang menumbuhkan tujuh bulir, pada tiap-tiap bulir seratus biji. Allah melipat gandakan (ganjaran) bagi siapa yang Dia kehendaki." (QS. Al-Baqarah: 261)_`;
+                                    
+                                    const message = encodeURIComponent(`Assalamu'alaikum Warahmatullahi Wabarakatuh Bapak/Ibu ${d.namaDonatur},\n\nTerima kasih, donasi ZISWAF Anda untuk program *${d.programName}* sebesar *Rp${d.nominal.toLocaleString('id-ID')}* telah kami terima dan diverifikasi pada tanggal ${d.tanggal} (No. Ref: CSR-ZISWAF-${datePart}-${d.id}).${keteranganText}\n\nJazakumullahu khairan katsiran atas infaq/wakaf Bapak/Ibu. Semoga menjadi amal jariyah yang terus mengalir pahalanya dan Allah SWT senantiasa melimpahkan keberkahan kepada Bapak/Ibu dan keluarga. Aamiin Ya Rabbal 'Alamiin.\n\nWassalamu'alaikum Warahmatullahi Wabarakatuh\n${hadithText}`);
+                                    
                                     window.open(`https://wa.me/${finalPhone}?text=${message}`, '_blank');
                                   } else {
                                     window.location.href = `mailto:${d.kontakDonatur}?subject=Kuitansi Donasi ZISWAF&body=Assalamu'alaikum ${d.namaDonatur}, Terima kasih atas donasi sebesar Rp${d.nominal.toLocaleString('id-ID')} untuk program ${d.programName}.`;
@@ -2625,7 +2611,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
                                   doc.setFont('helvetica', 'bold');
                                   doc.text('No. Referensi:', 15, startY);
                                   doc.setFont('helvetica', 'normal');
-                                  doc.text(`CSR-ZISWAF-${d.id}`, 60, startY);
+                                  const datePart = d.tanggal.replace(/\D/g, '');
+                                  doc.text(`CSR-ZISWAF-${datePart}-${d.id}`, 60, startY);
 
                                   doc.setFont('helvetica', 'bold');
                                   doc.text('Tanggal Transaksi:', 15, startY + 10);
@@ -2657,11 +2644,25 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
                                   doc.setDrawColor(226, 232, 240);
                                   doc.line(15, startY + 75, 195, startY + 75);
 
+                                  let nextY = startY + 85;
+                                  if (d.keterangan) {
+                                    doc.setTextColor(51, 51, 51);
+                                    doc.setFontSize(10);
+                                    doc.setFont('helvetica', 'bold');
+                                    doc.text('Keterangan:', 15, nextY);
+                                    doc.setFont('helvetica', 'normal');
+                                    doc.text(d.keterangan, 40, nextY);
+                                    nextY += 10;
+                                  }
+
                                   doc.setTextColor(100, 116, 139);
-                                  doc.setFontSize(8);
+                                  doc.setFontSize(9);
+                                  doc.setFont('helvetica', 'italic');
+                                  doc.text('Jazakumullahu khairan katsiran atas infaq/wakaf Bapak/Ibu, Semoga menjadi amal jariyah yang', 15, nextY);
+                                  doc.text("terus mengalir pahalanya dan Allah SWT melimpahkan keberkahan. Aamiin Ya Rabbal 'Alamiin.", 15, nextY + 5);
                                   doc.setFont('helvetica', 'normal');
-                                  const footerText = 'Terima kasih atas donasi ZISWAF Anda. Semoga membawa keberkahan.\nDokumen ini adalah dokumen resmi yang sah dicetak dari Portal DKM Masjid Citra Sentul Raya.';
-                                  doc.text(footerText, 15, startY + 85);
+                                  doc.setFontSize(8);
+                                  doc.text('Dokumen ini adalah dokumen resmi yang sah dicetak dari Portal DKM Masjid Citra Sentul Raya.', 15, nextY + 20);
                                   
                                   const safeName = (d.namaDonatur || 'Donatur').replace(/[^a-zA-Z0-9]/g, '_');
                                   const safeId = String(d.id).replace(/[^a-zA-Z0-9]/g, '_');
@@ -2672,27 +2673,45 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
                               >
                                 <FileText className="w-4 h-4" /> PDF
                               </button>
+                              {onDeleteDonasi && (
+                                <button
+                                  onClick={() => onDeleteDonasi(d.id)}
+                                  className="px-2 py-1.5 bg-red-100 text-red-700 hover:bg-red-200 rounded-lg transition-colors cursor-pointer flex items-center justify-center gap-1 font-bold text-xs" title="Hapus Permanen"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              )}
                             </div>
                           ) : (
                             <span className="text-xs text-slate-400 font-bold text-red-500">Ditolak</span>
                           )}
                         </td>
                       </tr>
-                    ))}
-                    {donasiHistory.length === 0 && (
-                      <tr>
-                        <td colSpan={6} className="px-5 py-8 text-center text-slate-500 font-medium">Belum ada donasi.</td>
-                      </tr>
-                    )}
+                            ))
+                          )}
+                          {(() => {
+                            const filteredDonasi = (donasiHistory || []).filter(d => {
+                              if (!filterVerifikasiStart && !filterVerifikasiEnd) return true;
+                              const dDate = new Date(d.tanggal).getTime();
+                              if (filterVerifikasiStart && dDate < new Date(filterVerifikasiStart).getTime()) return false;
+                              if (filterVerifikasiEnd && dDate > new Date(filterVerifikasiEnd).setHours(23,59,59,999)) return false;
+                              return true;
+                            });
+                            const totalVerifikasiPages = Math.ceil(filteredDonasi.length / ITEMS_PER_PAGE);
+                            return totalVerifikasiPages > 1 ? (
+                              <tr>
+                                <td colSpan={7} className="px-5 py-4 border-t border-slate-200">
+                                  <Pagination currentPage={verifikasiPage} totalItems={filteredDonasi.length} itemsPerPage={ITEMS_PER_PAGE} onPageChange={setVerifikasiPage} />
+                                </td>
+                              </tr>
+                            ) : null;
+                          })()}
+                        </>
+                      );
+                    })()}
                   </tbody>
                 </table>
               </div>
-              <Pagination
-                currentPage={donasiPage}
-                totalItems={donasiHistory.length}
-                itemsPerPage={ITEMS_PER_PAGE}
-                onPageChange={setDonasiPage}
-              />
             </div>
           </div>
         )}
@@ -4131,7 +4150,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, programs
               </div>
 
               {/* Sub-Tab Module Display */}
-              {lapkeuTab === 'neraca' && <ModulLaporanKeuangan journals={journals} accounts={accounts} />}
+              {lapkeuTab === 'neraca' && <ModulLaporanKeuangan journals={journals} accounts={accounts} onAddJournal={handleAutoPostJournal} />}
               {lapkeuTab === 'jurnal' && <ModulJurnal entries={journals} accounts={accounts} onAddJournal={handleAutoPostJournal} />}
               {lapkeuTab === 'bukubesar' && <ModulBukuBesar journals={journals} accounts={accounts} />}
               {lapkeuTab === 'coa' && <ModulCoA journals={journals} />}

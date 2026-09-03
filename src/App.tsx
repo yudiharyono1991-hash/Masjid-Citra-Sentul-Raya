@@ -124,12 +124,12 @@ export default function App() {
   // Global Error State
   const [errorLoad, setErrorLoad] = useState<string | null>(null);
 
-  const handleDonateSubmit = async (programId: number, nominal: number, metode: string, bukti: File | string | null, namaDonatur: string, kontakDonatur: string) => {
+  const handleDonateSubmit = async (programId: number, nominal: number, metode: string, bukti: File | string | null, namaDonatur: string, kontakDonatur: string, tanggalDonasi?: string, keteranganDonasi?: string) => {
     const program = programs.find(p => p.id === programId);
     if (!program) return;
     
     const donasiId = `INV-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
-    const tanggal = new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
+    const tanggal = tanggalDonasi || new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
     
     let finalBuktiUrl = null;
     
@@ -163,7 +163,8 @@ export default function App() {
       status: 'Menunggu Verifikasi',
       bukti: finalBuktiUrl,
       namaDonatur: namaDonatur || 'Hamba Allah',
-      kontakDonatur: kontakDonatur || '-'
+      kontakDonatur: kontakDonatur || '-',
+      keterangan: keteranganDonasi || ''
     };
     
     setDonasiHistory(prev => [newDonasi, ...prev]);
@@ -225,6 +226,29 @@ export default function App() {
     try {
       await supabase.from('donations').update({ status }).eq('id', id);
 
+      // --- Cleanup Notifications ---
+      if (donation) {
+        const nameMatcher = donation.namaDonatur || 'Hamba Allah';
+        const nominalStr = donation.nominal.toLocaleString('id-ID');
+        try {
+          await supabase.from('notifications')
+            .delete()
+            .ilike('message', `%${nameMatcher}%`)
+            .ilike('message', `%${nominalStr}%`);
+        } catch (e) {}
+        
+        try {
+          const stored = localStorage.getItem('admin_notifications');
+          if (stored) {
+             const notifs = JSON.parse(stored);
+             const filtered = notifs.filter((n: any) => !(n.message.includes(nameMatcher) && n.message.includes(nominalStr)));
+             localStorage.setItem('admin_notifications', JSON.stringify(filtered));
+             window.dispatchEvent(new Event('storage'));
+          }
+        } catch {}
+      }
+      // -----------------------------
+
       // Auto-post ke Pemasukan dan Jurnal Umum untuk integrasi Neraca Laporan Keuangan
       if (status === 'Berhasil' && donation && donation.status !== 'Berhasil') {
         const prog = programs.find(p => p.id === donation.programId);
@@ -259,24 +283,18 @@ export default function App() {
         const tanggalKini = toLocalDateString();
         const keterangan = `Penerimaan Donasi ${prog?.judul || 'ZISWAF'} a.n ${donation.namaDonatur || 'Hamba Allah'}`;
 
-        // 1. Insert ke tabel pemasukan (Riwayat Kas)
-        await supabase.from('pemasukan').insert([{
-           tanggal: tanggalKini,
-           keterangan: keterangan,
-           nominal: donation.nominal,
-           kategori: 'Penerimaan ZISWAF',
-           metode_pembayaran: donation.metode || 'Transfer',
-           dibuat_oleh: 'Sistem ZISWAF'
-        }]);
 
+        const isZakat = kat === 'zakat';
+        const isWakaf = kat === 'wakaf';
+        
         // 2. Insert ke Jurnal Umum (Double Entry)
         await supabase.from('jurnal_umum').insert([
           {
             id: `JU-${Date.now()}-1`,
             tanggal: tanggalKini,
-            no_bukti: `BKM-DONASI-${id}`,
+            no_bukti: `BKM-DON-${Date.now()}`,
             keterangan: keterangan,
-            kode_akun: akunDebit,
+            kode_akun: isZakat ? '1-10002' : (isWakaf ? '1-10002' : '1-10002'),
             debit: donation.nominal,
             kredit: 0,
             user_input: 'Sistem ZISWAF'
@@ -284,9 +302,9 @@ export default function App() {
           {
             id: `JU-${Date.now()}-2`,
             tanggal: tanggalKini,
-            no_bukti: `BKM-DONASI-${id}`,
+            no_bukti: `BKM-DON-${Date.now()}`,
             keterangan: keterangan,
-            kode_akun: akunKredit,
+            kode_akun: isZakat ? '4-20001' : (isWakaf ? '4-30001' : '4-10001'),
             debit: 0,
             kredit: donation.nominal,
             user_input: 'Sistem ZISWAF'
@@ -345,7 +363,8 @@ export default function App() {
             status: d.status,
             bukti: d.bukti,
             namaDonatur: d.nama_donatur,
-            kontakDonatur: d.kontak_donatur
+            kontakDonatur: d.kontak_donatur,
+            keterangan: d.keterangan || ''
           }));
           setDonasiHistory(formattedDonasi); // Always update, including when empty (reset)
         } else if (!donasiErr) {
@@ -537,7 +556,99 @@ export default function App() {
               registeredJamaahList={registeredJamaahList}
               donasiHistory={donasiHistory}
               onVerifyDonasi={handleVerifyDonasi}
-              onAddDonasiHistoryItem={(newItem: any) => setDonasiHistory(prev => [newItem, ...prev])}
+              onAddDonasiHistoryItem={(newItem: any) => {
+                setDonasiHistory(prev => [newItem, ...prev]);
+                if (newItem.status === 'Berhasil') {
+                  setPrograms(prevPrograms => prevPrograms.map(p => {
+                    if (p.id === newItem.programId) {
+                      const newTerkumpul = p.terkumpulRp + newItem.nominal;
+                      const newDonatur = p.donatur + 1;
+                      let percentage = 0;
+                      if (p.targetRp > 0 && newTerkumpul > 0) {
+                        const rawPct = (newTerkumpul / p.targetRp) * 100;
+                        percentage = rawPct < 1 ? 1 : Math.min(100, Math.round(rawPct));
+                      }
+                      
+                      supabase.from('programs').update({
+                        terkumpul_rp: newTerkumpul,
+                        terkumpul_persen: percentage,
+                        donatur: newDonatur
+                      }).eq('id', p.id).then();
+
+                      return { ...p, terkumpulRp: newTerkumpul, terkumpulPersen: percentage, donatur: newDonatur };
+                    }
+                    return p;
+                  }));
+                }
+              }}
+              onDeleteDonasi={async (id: string) => {
+                const isConfirmed = confirm('Yakin ingin menghapus donasi ini secara permanen dari sistem?');
+                if (!isConfirmed) return;
+                try {
+                  // Temukan donasi yang akan dihapus
+                  const donasiToDelete = donasiHistory.find(d => d.id === id);
+                  
+                  await supabase.from('donations').delete().eq('id', id);
+                  setDonasiHistory(prev => prev.filter(d => d.id !== id));
+                  
+                  // Jika donasi tersebut statusnya 'Berhasil', kurangi total dari program
+                  if (donasiToDelete && donasiToDelete.status === 'Berhasil') {
+                    setPrograms(prevPrograms => {
+                      const newPrograms = prevPrograms.map(p => {
+                        if (p.id === donasiToDelete.programId) {
+                          const newTerkumpul = Math.max(0, p.terkumpulRp - donasiToDelete.nominal);
+                          const newDonatur = Math.max(0, p.donatur - 1);
+                          let percentage = 0;
+                          if (p.targetRp > 0 && newTerkumpul > 0) {
+                            const rawPct = (newTerkumpul / p.targetRp) * 100;
+                            percentage = rawPct < 1 ? 1 : Math.min(100, Math.round(rawPct));
+                          }
+                          
+                          // Update ke Supabase
+                          supabase.from('programs').update({
+                            terkumpul_rp: newTerkumpul,
+                            terkumpul_persen: percentage,
+                            donatur: newDonatur
+                          }).eq('id', p.id).then();
+
+                          return { ...p, terkumpulRp: newTerkumpul, terkumpulPersen: percentage, donatur: newDonatur };
+                        }
+                        return p;
+                      });
+                      return newPrograms;
+                    });
+                  }
+                  
+                  // --- Cleanup Notifications ---
+                  if (donasiToDelete) {
+                    const nameMatcher = donasiToDelete.namaDonatur || 'Hamba Allah';
+                    const nominalStr = donasiToDelete.nominal.toLocaleString('id-ID');
+                    try {
+                      await supabase.from('notifications')
+                        .delete()
+                        .ilike('message', `%${nameMatcher}%`)
+                        .ilike('message', `%${nominalStr}%`);
+                    } catch (e) {}
+                    
+                    try {
+                      const stored = localStorage.getItem('admin_notifications');
+                      if (stored) {
+                         const notifs = JSON.parse(stored);
+                         const filtered = notifs.filter((n: any) => !(n.message.includes(nameMatcher) && n.message.includes(nominalStr)));
+                         localStorage.setItem('admin_notifications', JSON.stringify(filtered));
+                         window.dispatchEvent(new Event('storage'));
+                      }
+                    } catch {}
+                  }
+                  // -----------------------------
+
+                  logAudit('Pengurus DKM', adminRole.toUpperCase(), 'admin@masjid.id', 'HAPUS_DONASI', `Menghapus data donasi ID: ${id}`, 'bg-red-900/50 text-red-600');
+                  alert('Data donasi berhasil dihapus.');
+                } catch (err) {
+                  console.error('Failed to delete donation from Supabase', err);
+                  alert('Gagal menghapus donasi.');
+                }
+              }}
               auditLogs={auditLogs}
             />
           </div>
@@ -649,7 +760,7 @@ export default function App() {
       )}
 
       {/* Footer */}
-      {!isAdmin && !isJamaahLoggedIn && <Footer onNavigate={() => {}} onOpenWakafModal={() => {}} />}
+      {!showPortal && <Footer onNavigate={() => {}} onOpenWakafModal={() => {}} />}
 
       {/* Modals */}
       <LoginModal 

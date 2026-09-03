@@ -3,6 +3,7 @@ import { FileText, PlusCircle, Search, Download, Eye, Trash2, X, Upload, CheckCi
 import { PENGURUS_DKM, ROLE_LABELS } from '../data/pengurusData';
 import { toLocalDateString } from '../utils/formatters';
 import { supabase } from '../lib/supabase';
+import { Pagination } from './Pagination';
 
 export interface SuratItem {
   id: string;
@@ -107,6 +108,19 @@ export const ModulSuratMenyurat: React.FC<ModulSuratMenyuratProps> = ({ adminRol
   const [previewSurat, setPreviewSurat] = useState<SuratItem | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState('');
+
+  // Pagination & Date Filter
+  const [suratPage, setSuratPage] = useState(1);
+  const ITEMS_PER_PAGE = 10;
+  
+  const toLocalISODate = (d: Date) => {
+    const tzOffset = d.getTimezoneOffset() * 60000;
+    return new Date(d.getTime() - tzOffset).toISOString().split('T')[0];
+  };
+  const todayLocal = new Date();
+  const firstOfMonthLocal = new Date(todayLocal.getFullYear(), todayLocal.getMonth(), 1);
+  const [filterStart, setFilterStart] = useState(toLocalISODate(firstOfMonthLocal));
+  const [filterEnd, setFilterEnd] = useState(toLocalISODate(todayLocal));
 
   // Form state
   const [formJenis, setFormJenis] = useState<SuratItem['jenis']>('keluar');
@@ -281,8 +295,22 @@ export const ModulSuratMenyurat: React.FC<ModulSuratMenyuratProps> = ({ adminRol
     const matchSearch = !q || s.perihal.toLowerCase().includes(q) || s.nomorSurat.toLowerCase().includes(q) || s.pengirimPenerima.toLowerCase().includes(q);
     const matchJenis = filterJenis === 'semua' || s.jenis === filterJenis;
     const matchStatus = filterStatus === 'semua' || s.status === filterStatus;
-    return matchSearch && matchJenis && matchStatus;
+    
+    let matchDate = true;
+    if (filterStart && filterEnd) {
+      const sDate = new Date(s.tanggal).getTime();
+      const start = new Date(filterStart).getTime();
+      const end = new Date(filterEnd).setHours(23, 59, 59, 999);
+      matchDate = sDate >= start && sDate <= end;
+    }
+
+    return matchSearch && matchJenis && matchStatus && matchDate;
   });
+
+  const paginatedSurat = filteredSurat.slice(
+    (suratPage - 1) * ITEMS_PER_PAGE,
+    suratPage * ITEMS_PER_PAGE
+  );
 
   const getJenisLabel = (jenis: string) => JENIS_SURAT.find(j => j.id === jenis)?.label || jenis;
   const getJenisBadgeColor = (jenis: string) => {
@@ -365,6 +393,12 @@ export const ModulSuratMenyurat: React.FC<ModulSuratMenyuratProps> = ({ adminRol
             <option value="final">Final</option>
             <option value="draft">Draft</option>
           </select>
+          <div className="flex items-center gap-2 bg-slate-50 rounded-xl px-3 py-1.5 border border-slate-200">
+            <span className="text-xs font-bold text-slate-700">Tanggal:</span>
+            <input type="date" value={filterStart} onChange={e => { setFilterStart(e.target.value); setSuratPage(1); }} className="bg-transparent text-slate-700 font-medium text-xs focus:outline-none focus:ring-0" />
+            <span className="text-xs font-bold text-slate-400">-</span>
+            <input type="date" value={filterEnd} onChange={e => { setFilterEnd(e.target.value); setSuratPage(1); }} className="bg-transparent text-slate-700 font-medium text-xs focus:outline-none focus:ring-0" />
+          </div>
         </div>
       </div>
 
@@ -391,7 +425,7 @@ export const ModulSuratMenyurat: React.FC<ModulSuratMenyuratProps> = ({ adminRol
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filteredSurat.map(surat => (
+                {paginatedSurat.map(surat => (
                   <tr key={surat.id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-4 py-3">
                       <span className="font-mono text-xs text-slate-700 font-medium">{surat.nomorSurat}</span>
@@ -464,6 +498,17 @@ export const ModulSuratMenyurat: React.FC<ModulSuratMenyuratProps> = ({ adminRol
           </div>
         )}
       </div>
+
+      {filteredSurat.length > 0 && (
+        <div className="mt-4">
+          <Pagination
+            currentPage={suratPage}
+            totalItems={filteredSurat.length}
+            itemsPerPage={ITEMS_PER_PAGE}
+            onPageChange={setSuratPage}
+          />
+        </div>
+      )}
 
       {/* Form Modal */}
       {showForm && (

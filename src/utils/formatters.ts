@@ -32,8 +32,10 @@ export function buildWhatsAppLink(
     nominal: number;
     paket?: string;
     pesanDoa?: string;
+    keterangan?: string;
     metode: string;
     kodeUnik?: number;
+    tanggal?: string;
   }
 ): string {
   const cleanPhone = phone.replace(/[^0-9]/g, '');
@@ -48,8 +50,8 @@ Saya hendak mengonfirmasi donasi Wakaf Pembangunan Masjid Citra Sentul Raya:
 • Paket Wakaf: ${data.paket || 'Wakaf Nominal Bebas'}
 • Nominal Wakaf: ${formatRupiah(data.nominal)}
 • Metode Pembayaran: ${data.metode} (Bank BSI No. 7257159102 a.n. Masjid Citra Sentul Raya)
-• Tanggal: ${formatTanggalIndo(new Date().toISOString())}
-
+• Tanggal: ${formatTanggalIndo(data.tanggal || new Date().toISOString())}
+${data.keterangan ? `• Keterangan: ${data.keterangan}\n` : ''}
 🤲 *Doa / Niat:*
 "${data.pesanDoa || 'Semoga menjadi amal jariyah yang mengalir pahalanya dan berkah untuk keluarga.'}"
 

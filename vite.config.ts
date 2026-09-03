@@ -110,6 +110,9 @@ export default defineConfig(() => {
               type: 'image/png'
             }
           ]
+        },
+        workbox: {
+          maximumFileSizeToCacheInBytes: 4000000 // 4MB to avoid PWA build error on large chunks
         }
       })
     ],

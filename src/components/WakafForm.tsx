@@ -49,6 +49,8 @@ export const WakafForm: React.FC<WakafFormProps> = ({ onAddMuwakif, onShowCertif
   const [isHambaAllah, setIsHambaAllah] = useState<boolean>(false);
   const [telepon, setTelepon] = useState<string>('');
   const [pesanDoa, setPesanDoa] = useState<string>('');
+  const [tanggalTransaksi, setTanggalTransaksi] = useState<string>(() => toLocalDateString());
+  const [keterangan, setKeterangan] = useState<string>('');
   const [metodePembayaran, setMetodePembayaran] = useState<'BSI' | 'QRIS'>('BSI');
   const [showQrisModal, setShowQrisModal] = useState<boolean>(false);
   const [isQrisZoomed, setIsQrisZoomed] = useState<boolean>(false);
@@ -139,8 +141,9 @@ export const WakafForm: React.FC<WakafFormProps> = ({ onAddMuwakif, onShowCertif
       nama: donorName,
       nominal: totalTransfer,
       paket: selectedPaketObj ? selectedPaketObj.nama : 'Wakaf Nominal Bebas',
-      tanggal: toLocalDateString(),
+      tanggal: tanggalTransaksi,
       pesanDoa: pesanDoa.trim() || 'Semoga wakaf ini membawa keberkahan dan pahala yang tak terputus.',
+      keterangan: keterangan.trim(),
       isHambaAllah,
       isVerified: true,
       metode: metodePembayaran,
@@ -320,23 +323,48 @@ export const WakafForm: React.FC<WakafFormProps> = ({ onAddMuwakif, onShowCertif
                       className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-emerald-500"
                     />
                   </div>
+                  
+                  <div>
+                    <label className="text-xs font-semibold text-slate-600 block mb-1">
+                      Tanggal Transaksi (Bisa disesuaikan)
+                    </label>
+                    <input
+                      type="date"
+                      value={tanggalTransaksi}
+                      onChange={(e) => setTanggalTransaksi(e.target.value)}
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
                 </div>
               </div>
 
               <div className="space-y-3">
                 <label className="text-sm font-bold text-slate-800 flex items-center gap-2">
                   <MessageSquare className="w-4 h-4 text-emerald-600" />
-                  <span>3. Pesan Niat & Doa Keberkahan</span>
+                  <span>3. Pesan & Keterangan Tambahan</span>
                 </label>
 
-                <div>
-                  <textarea
-                    rows={4}
-                    value={pesanDoa}
-                    onChange={(e) => setPesanDoa(e.target.value)}
-                    placeholder="Tuliskan niat wakaf atau doa untuk diri sendiri, keluarga, atau almarhum/almarhumah tercinta..."
-                    className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-emerald-500 resize-none"
-                  ></textarea>
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-xs font-semibold text-slate-600 block mb-1">Keterangan Transfer (Mis: Wakaf Alm Bapak, Transfer ke BCA, dll)</label>
+                    <input
+                      type="text"
+                      value={keterangan}
+                      onChange={(e) => setKeterangan(e.target.value)}
+                      placeholder="Contoh: Transfer ke rekening BCA 5 juta"
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-slate-600 block mb-1">Pesan Niat & Doa Keberkahan</label>
+                    <textarea
+                      rows={3}
+                      value={pesanDoa}
+                      onChange={(e) => setPesanDoa(e.target.value)}
+                      placeholder="Tuliskan niat wakaf atau doa untuk diri sendiri, keluarga, atau almarhum/almarhumah tercinta..."
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-emerald-500 resize-none"
+                    ></textarea>
+                  </div>
                 </div>
               </div>
             </div>
@@ -634,7 +662,9 @@ export const WakafForm: React.FC<WakafFormProps> = ({ onAddMuwakif, onShowCertif
                       nominal: lastSubmittedMuwakif.nominal,
                       paket: lastSubmittedMuwakif.paket,
                       pesanDoa: lastSubmittedMuwakif.pesanDoa,
+                      keterangan: lastSubmittedMuwakif.keterangan,
                       metode: lastSubmittedMuwakif.metode,
+                      tanggal: lastSubmittedMuwakif.tanggal,
                     })}
                     target="_blank"
                     rel="noopener noreferrer"

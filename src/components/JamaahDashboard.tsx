@@ -6,6 +6,7 @@ import { BukuPanduanModal } from './BukuPanduanModal';
 import { triggerWaApp, sendWaViaGateway, generateWaReminderMessage, formatWaPhone, triggerDeviceNotification, requestDeviceNotificationPermission } from '../utils/whatsappReminder';
 import { supabase } from '../lib/supabase';
 import { getPrayerTimesSentul, getNextPrayerInfo, fetchPrayerTimesOnline } from '../utils/prayerTimes';
+import { formatTanggalIndo } from '../utils/formatters';
 import { JadwalWaktu } from '../types';
 interface JamaahDashboardProps {
   onBack: () => void;
@@ -125,8 +126,11 @@ export const JamaahDashboard: React.FC<JamaahDashboardProps> = ({ onBack, nama, 
       return;
     }
 
+    const ticketId = `TKT-${Math.floor(100000 + Math.random() * 900000)}`;
+
     const newItem = {
       id: `tanya-${Date.now()}`,
+      ticket_id: ticketId,
       kategori: formKategori,
       judul: formJudul.trim(),
       pesan: formPesan.trim(),
@@ -145,10 +149,12 @@ export const JamaahDashboard: React.FC<JamaahDashboardProps> = ({ onBack, nama, 
     try {
       await supabase.from('tanya_dkm').insert([{
         id: newItem.id,
+        ticket_id: newItem.ticket_id,
         kategori: newItem.kategori,
         judul: newItem.judul,
         pesan: newItem.pesan,
         nama_penanya: newItem.namaPenanya,
+        no_wa: profilContact,
         tanggal: newItem.tanggal,
         status: newItem.status,
         jawaban_dkm: null,
@@ -169,7 +175,7 @@ export const JamaahDashboard: React.FC<JamaahDashboardProps> = ({ onBack, nama, 
 
     setFormJudul('');
     setFormPesan('');
-    alert('✅ Pertanyaan / Aspirasi Anda berhasil terkirim ke pengurus DKM! Tim kami akan meninjau dan memberikan jawaban segera.');
+    alert(`✅ Pertanyaan / Aspirasi Anda berhasil terkirim ke pengurus DKM!\n\nNomor Tiket Anda: ${ticketId}\nSimpan nomor tiket ini untuk melacak tanggapan pengurus.`);
   };
 
   // Adzan Alarms State
@@ -310,7 +316,7 @@ export const JamaahDashboard: React.FC<JamaahDashboardProps> = ({ onBack, nama, 
     doc.setFont('helvetica', 'bold');
     doc.text('Tanggal Transaksi:', 15, startY + 10);
     doc.setFont('helvetica', 'normal');
-    doc.text(donasi.tanggal, 60, startY + 10);
+    doc.text(formatTanggalIndo(donasi.tanggal), 60, startY + 10);
 
     doc.setFont('helvetica', 'bold');
     doc.text('Nama Donatur:', 15, startY + 20);
@@ -341,18 +347,32 @@ export const JamaahDashboard: React.FC<JamaahDashboardProps> = ({ onBack, nama, 
 
     doc.setDrawColor(226, 232, 240);
     doc.line(15, startY + 75, 195, startY + 75);
+    
+    // Check if we need to print keterangan
+    let nextY = startY + 85;
+    if (donasi.keterangan) {
+      doc.setTextColor(51, 51, 51);
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Keterangan:', 15, nextY);
+      doc.setFont('helvetica', 'normal');
+      doc.text(donasi.keterangan, 40, nextY);
+      nextY += 10;
+    }
+
     doc.setTextColor(100, 116, 139);
     doc.setFontSize(9);
     doc.setFont('helvetica', 'italic');
-    doc.text('Terima kasih atas infaq dan sedekah Anda. Semoga menjadi pembersih harta dan pendorong keberkahan.', 15, startY + 85);
-    doc.text('Dokumen ini diterbitkan secara otomatis oleh Portal Resmi Masjid Citra Sentul Raya.', 15, startY + 92);
+    doc.text('Jazakumullahu khairan katsiran atas infaq/wakaf Bapak/Ibu, Semoga menjadi amal jariyah yang', 15, nextY);
+    doc.text("terus mengalir pahalanya dan Allah SWT melimpahkan keberkahan. Aamiin Ya Rabbal 'Alamiin.", 15, nextY + 5);
+    doc.text('Dokumen ini diterbitkan secara otomatis oleh Portal Resmi Masjid Citra Sentul Raya.', 15, nextY + 15);
 
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(6, 78, 59);
-    doc.text('DKM MASJID CITRA SENTUL RAYA', 140, startY + 120);
+    doc.text('DKM MASJID CITRA SENTUL RAYA', 140, nextY + 30);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(100, 116, 139);
-    doc.text('Tersetujui Sistem Digital', 145, startY + 126);
+    doc.text('Tersetujui Sistem Digital', 145, nextY + 36);
 
     doc.save(`Kuitansi_Donasi_${donasi.id}_MasjidCitraSentul.pdf`);
   };

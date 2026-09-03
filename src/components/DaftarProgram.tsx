@@ -16,7 +16,7 @@ interface Program {
 
 interface DaftarProgramProps {
   programs: Program[];
-  onDonate?: (programId: number, nominal: number, metode: string, bukti: File | string | null, namaDonatur: string, kontakDonatur: string) => void;
+  onDonate?: (programId: number, nominal: number, metode: string, bukti: File | string | null, namaDonatur: string, kontakDonatur: string, tanggalTransaksi?: string, keterangan?: string) => void;
   loggedInName?: string;
   loggedInContact?: string;
 }
@@ -28,6 +28,8 @@ export const DaftarProgram: React.FC<DaftarProgramProps> = ({ programs, onDonate
   const [buktiDonasi, setBuktiDonasi] = useState<File | null>(null);
   const [namaDonatur, setNamaDonatur] = useState('');
   const [kontakDonatur, setKontakDonatur] = useState('');
+  const [tanggalTransaksi, setTanggalTransaksi] = useState<string>(() => new Date().toISOString().split('T')[0]);
+  const [keterangan, setKeterangan] = useState<string>('');
   const [step, setStep] = useState<'form' | 'success'>('form');
   const [showQrisZoom, setShowQrisZoom] = useState(false);
   const [isQrisZoomed, setIsQrisZoomed] = useState(false);
@@ -114,7 +116,7 @@ export const DaftarProgram: React.FC<DaftarProgramProps> = ({ programs, onDonate
                   alt={prog.judul}
                   className="w-full h-full object-cover"
                 />
-                <div className="absolute top-4 left-4 bg-white/90 backdrop-blur text-lime-800 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider">
+                <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-lime-800 text-lime-800 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider">
                   {prog.kategori}
                 </div>
               </div>
@@ -170,6 +172,8 @@ export const DaftarProgram: React.FC<DaftarProgramProps> = ({ programs, onDonate
                         setBuktiDonasi(null);
                         setNamaDonatur(loggedInName || '');
                         setKontakDonatur(loggedInContact || '');
+                        setTanggalTransaksi(new Date().toISOString().split('T')[0]);
+                        setKeterangan('');
                       }}
                       className="bg-lime-600 hover:bg-lime-700 text-white font-bold py-1.5 px-4 rounded-lg text-sm transition-colors cursor-pointer"
                     >
@@ -209,6 +213,16 @@ export const DaftarProgram: React.FC<DaftarProgramProps> = ({ programs, onDonate
                     <label className="block text-sm font-bold text-slate-700 mb-2">No. WhatsApp / Email</label>
                     <input type="text" placeholder="Untuk info konfirmasi" value={kontakDonatur} onChange={(e) => setKontakDonatur(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl font-semibold text-slate-800 focus:outline-none focus:border-lime-600" />
                   </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-bold text-slate-700 mb-2">Tanggal Transaksi</label>
+                      <input type="date" value={tanggalTransaksi} onChange={(e) => setTanggalTransaksi(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl font-semibold text-slate-800 focus:outline-none focus:border-lime-600" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold text-slate-700 mb-2">Keterangan (Opsional)</label>
+                      <input type="text" placeholder="Mis: Wakaf Alm. Bapak" value={keterangan} onChange={(e) => setKeterangan(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl font-semibold text-slate-800 focus:outline-none focus:border-lime-600" />
+                    </div>
+                  </div>
                   <div>
                     <label className="block text-sm font-bold text-slate-700 mb-2">Pilih Nominal (Rp)</label>
                     <div className="grid grid-cols-3 gap-2 mb-2">
@@ -230,7 +244,6 @@ export const DaftarProgram: React.FC<DaftarProgramProps> = ({ programs, onDonate
                     
                     {metode === 'QRIS' && (
                       <div className="bg-emerald-950 border border-emerald-700/60 rounded-2xl p-4 animate-in fade-in space-y-4">
-                        {/* Scanner laser animation */}
                         <style>{`
                           @keyframes scanSmall {
                             0%, 100% { transform: translateY(0); }
@@ -240,8 +253,6 @@ export const DaftarProgram: React.FC<DaftarProgramProps> = ({ programs, onDonate
                             animation: scanSmall 2.5s ease-in-out infinite;
                           }
                         `}</style>
-
-                        {/* Header Badges */}
                         <div className="flex flex-wrap items-center justify-between gap-1 pb-2 border-b border-emerald-800/80">
                           <div className="flex items-center gap-1.5">
                             <span className="w-1.5 h-1.5 rounded-full bg-lime-400 animate-pulse"></span>
@@ -257,9 +268,7 @@ export const DaftarProgram: React.FC<DaftarProgramProps> = ({ programs, onDonate
                           </div>
                         </div>
 
-                        {/* Middle: QR + Info Side by Side */}
                         <div className="flex items-start gap-4">
-                          {/* QR Frame with glow & laser scanner */}
                           <div
                             onClick={() => { setIsQrisZoomed(false); setShowQrisZoom(true); }}
                             className="group relative cursor-pointer flex-shrink-0"
@@ -272,7 +281,6 @@ export const DaftarProgram: React.FC<DaftarProgramProps> = ({ programs, onDonate
                                 alt="QRIS Masjid Citra Sentul Raya"
                                 className="w-full h-full object-contain rounded-lg block transition-transform duration-300 group-hover:scale-105 select-none"
                               />
-                              {/* Laser overlay */}
                               <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-lime-400 to-transparent shadow-[0_0_6px_1.5px_#a3e635] scanner-laser-small pointer-events-none" />
                               
                               <div className="absolute inset-0 bg-emerald-950/70 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex flex-col items-center justify-center gap-0.5">
@@ -282,7 +290,6 @@ export const DaftarProgram: React.FC<DaftarProgramProps> = ({ programs, onDonate
                             </div>
                           </div>
 
-                          {/* Right info */}
                           <div className="flex-1 space-y-2">
                             <div>
                               <p className="text-xs font-black text-white leading-tight">Scan & Bayar Sekarang</p>
@@ -293,7 +300,6 @@ export const DaftarProgram: React.FC<DaftarProgramProps> = ({ programs, onDonate
                                 NMID: ID1023304558381
                               </span>
                             </div>
-                            {/* Branded E-wallet chips */}
                             <div className="flex flex-wrap gap-1">
                               <span className="text-[8px] font-black px-1 py-0.2 rounded-md bg-sky-500/10 text-sky-400 border border-sky-500/20">GoPay</span>
                               <span className="text-[8px] font-black px-1 py-0.2 rounded-md bg-purple-500/10 text-purple-400 border border-purple-500/20">OVO</span>
@@ -304,7 +310,6 @@ export const DaftarProgram: React.FC<DaftarProgramProps> = ({ programs, onDonate
                           </div>
                         </div>
 
-                        {/* Nominal summary box if nominal entered */}
                         {nominal && parseInt(nominal) > 0 && (
                           <div className="bg-emerald-900/30 border border-emerald-800/40 p-2 rounded-xl flex items-center justify-between text-xs">
                             <div>
@@ -324,7 +329,6 @@ export const DaftarProgram: React.FC<DaftarProgramProps> = ({ programs, onDonate
                           </div>
                         )}
 
-                        {/* Action buttons */}
                         <div className="flex gap-2 pt-2 border-t border-emerald-800/60">
                           <button
                             type="button"
@@ -368,7 +372,7 @@ export const DaftarProgram: React.FC<DaftarProgramProps> = ({ programs, onDonate
                     disabled={!nominal || !buktiDonasi || !kontakDonatur}
                     onClick={() => {
                       if (onDonate) {
-                        onDonate(selectedProgramId, parseInt(nominal), metode, buktiDonasi, namaDonatur, kontakDonatur);
+                        onDonate(selectedProgramId, parseInt(nominal) || 0, metode, buktiDonasi, namaDonatur, kontakDonatur, tanggalTransaksi, keterangan);
                       }
                       setStep('success');
                     }}
