@@ -393,13 +393,25 @@ export const DaftarProgram: React.FC<DaftarProgramProps> = ({ programs, onDonate
                        const doc = new jsPDF();
                        doc.setFontSize(16);
                        doc.text('Bukti Donasi Sementara', 105, 20, { align: 'center' });
-                       doc.setFontSize(12);
+                       doc.setFont('helvetica', 'normal');
                        doc.text(`Program: ${programs.find(p => p.id === selectedProgramId)?.judul}`, 20, 40);
                        doc.text(`Nominal: Rp ${nominal}`, 20, 50);
                        doc.text(`Nama Donatur: ${namaDonatur || 'Hamba Allah'}`, 20, 60);
                        doc.text(`Status: Menunggu Verifikasi`, 20, 70);
-                       doc.text('Terima kasih atas infak dan sedekah Anda.', 105, 90, { align: 'center' });
-                       doc.save(`Donasi_Sementara_${(namaDonatur || 'Donatur').replace(/[^a-zA-Z0-9]/g, '_')}.pdf`);
+                       if (keterangan) {
+                         doc.text(`Keterangan: ${keterangan}`, 20, 80);
+                       }
+                       
+                       // TTD Section
+                       doc.text('Bogor, ' + new Date().toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' }), 130, 100);
+                       doc.setFont('helvetica', 'bold');
+                       doc.text('Ketua DKM Masjid Citra Sentul Raya', 130, 105);
+                       doc.text('_____________________________', 130, 125);
+                       
+                       doc.setFont('helvetica', 'italic');
+                       doc.setFontSize(10);
+                       doc.text('Bukti ini adalah struk sementara sebelum diverifikasi Admin.', 20, 140);
+                       doc.save(`Struk_Donasi_${namaDonatur || 'Hamba_Allah'}.pdf`);
                     }} className="w-full px-4 py-2.5 bg-emerald-100 hover:bg-emerald-200 text-emerald-700 font-bold rounded-xl transition-colors cursor-pointer flex items-center justify-center gap-2 text-sm border border-emerald-200">
                       <FileText className="w-4 h-4" /> Unduh Bukti Sementara (PDF)
                     </button>

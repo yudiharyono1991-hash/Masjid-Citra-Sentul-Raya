@@ -1057,7 +1057,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           status: 'Berhasil',
           bukti: finalBuktiUrl,
           nama_donatur: namaDonatur,
-          kontak_donatur: kontakDonaturStr || '-'
+          kontak_donatur: kontakDonaturStr || '-',
+          keterangan: keteranganZiswaf
         };
         await supabase.from('donations').insert([donasiRecord]);
         
@@ -2651,10 +2652,23 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                     doc.setFont('helvetica', 'bold');
                                     doc.text('Keterangan:', 15, nextY);
                                     doc.setFont('helvetica', 'normal');
-                                    doc.text(d.keterangan, 40, nextY);
+                                    doc.text(d.keterangan, 60, nextY);
                                     nextY += 10;
                                   }
+                                  
+                                  // TTD Section
+                                  nextY += 10;
+                                  doc.setTextColor(51, 51, 51);
+                                  doc.setFontSize(10);
+                                  doc.setFont('helvetica', 'normal');
+                                  doc.text('Bogor, ' + new Date().toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' }), 130, nextY);
+                                  doc.setFont('helvetica', 'bold');
+                                  doc.text('Ketua DKM Masjid Citra Sentul Raya', 130, nextY + 5);
+                                  
+                                  // Signature placeholder
+                                  doc.text('_____________________________', 130, nextY + 25);
 
+                                  nextY += 40;
                                   doc.setTextColor(100, 116, 139);
                                   doc.setFontSize(9);
                                   doc.setFont('helvetica', 'italic');

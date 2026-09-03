@@ -174,12 +174,12 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
 
           {/* Navigation Links */}
-          <nav className="flex flex-wrap justify-center gap-1 sm:gap-1.5">
+          <nav className="flex w-full md:w-auto overflow-x-auto pb-2 md:pb-0 justify-start md:justify-center gap-2 sm:gap-1.5 no-scrollbar snap-x px-1">
             {navItems.map((item) => (
               <button
                 key={item.id}
                 onClick={() => handleScroll(item.id)}
-                className={`px-3 py-2 text-xs sm:text-sm font-semibold rounded-xl transition-all cursor-pointer ${
+                className={`flex-shrink-0 px-3 py-2 text-xs sm:text-sm font-semibold rounded-xl transition-all cursor-pointer snap-center ${
                   (!isPortalActive && activeSection === item.id)
                     ? isDarkMode 
                       ? 'text-emerald-400 bg-slate-800' 

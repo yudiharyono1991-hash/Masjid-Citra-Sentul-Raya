@@ -181,7 +181,8 @@ export default function App() {
         status: 'Menunggu Verifikasi',
         bukti: finalBuktiUrl,
         nama_donatur: namaDonatur || 'Hamba Allah',
-        kontak_donatur: kontakDonatur || '-'
+        kontak_donatur: kontakDonatur || '-',
+        keterangan: keteranganDonasi || ''
       }]);
 
       // Add notifications - try Supabase first (cross-device), fallback to localStorage
