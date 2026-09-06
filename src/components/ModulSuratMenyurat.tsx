@@ -1,5 +1,8 @@
-import React, { useState, useRef } from 'react';
-import { FileText, PlusCircle, Search, Download, Eye, Trash2, X, Upload, CheckCircle, AlertTriangle, Filter, Printer } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { 
+  FileText, PlusCircle, Search, Download, Eye, Trash2, X, Upload, 
+  CheckCircle, AlertTriangle, Filter, Printer, Database, RefreshCw, Info 
+} from 'lucide-react';
 import { PENGURUS_DKM, ROLE_LABELS } from '../data/pengurusData';
 import { toLocalDateString } from '../utils/formatters';
 import { supabase } from '../lib/supabase';
@@ -57,47 +60,139 @@ const generateNomorSurat = (jenis: string, suratList: SuratItem[]): string => {
   return `${seq}/${prefix}/DKM-CSR/${bulanRomawi}/${tahun}`;
 };
 
-const INITIAL_SURAT: SuratItem[] = [];
+const LOCAL_STORAGE_KEY = 'dkm_surat_menyurat';
+
+const getLocalSurat = (): SuratItem[] => {
+  try {
+    const raw = localStorage.getItem(LOCAL_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (e) {
+    console.error('Error reading surat from localStorage:', e);
+    return [];
+  }
+};
+
+const saveLocalSurat = (items: SuratItem[]) => {
+  try {
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(items));
+  } catch (e) {
+    console.warn('LocalStorage quota warning, trimming heavy files:', e);
+    try {
+      const stripped = items.map(item => ({
+        ...item,
+        fileUrl: item.fileUrl && item.fileUrl.length > 100000 ? null : item.fileUrl
+      }));
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(stripped));
+    } catch (e2) {
+      console.error('Failed to save surat to localStorage:', e2);
+    }
+  }
+};
 
 export const ModulSuratMenyurat: React.FC<ModulSuratMenyuratProps> = ({ adminRole = 'direktur' }) => {
-  const [suratList, setSuratList] = useState<SuratItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [suratList, setSuratList] = useState<SuratItem[]>(() => getLocalSurat());
+  const [loading, setLoading] = useState(false);
+  const [cloudSynced, setCloudSynced] = useState<boolean | null>(null);
+  const [isSyncingCloud, setIsSyncingCloud] = useState(false);
 
-  React.useEffect(() => {
+  useEffect(() => {
     fetchSurat();
   }, []);
 
   const fetchSurat = async () => {
     setLoading(true);
+    const localData = getLocalSurat();
+    if (localData.length > 0) {
+      setSuratList(localData);
+    }
+
     try {
       const { data, error } = await supabase
         .from('dkm_surat_menyurat')
         .select('*')
         .order('created_at', { ascending: false });
         
-      if (data && !error) {
+      if (!error && data) {
+        setCloudSynced(true);
         const mapped: SuratItem[] = data.map(d => ({
           id: d.id,
           nomorSurat: d.nomor_surat,
           jenis: d.jenis as any,
           perihal: d.perihal,
           tanggal: d.tanggal,
-          pengirimPenerima: d.pengirim_penerima,
-          penandatangan: d.penandatangan,
-          jabatanTtd: d.jabatan_ttd,
-          keterangan: d.keterangan,
-          fileUrl: d.file_url,
-          fileName: d.file_name,
-          status: d.status as any,
-          dibuatOleh: d.dibuat_oleh,
-          dibuatPada: d.created_at
+          pengirimPenerima: d.pengirim_penerima || '',
+          penandatangan: d.penandatangan || '',
+          jabatanTtd: d.jabatan_ttd || '',
+          keterangan: d.keterangan || '',
+          fileUrl: d.file_url || null,
+          fileName: d.file_name || '',
+          status: (d.status as any) || 'final',
+          dibuatOleh: d.dibuat_oleh || 'direktur',
+          dibuatPada: d.created_at ? d.created_at.split('T')[0] : toLocalDateString()
         }));
-        setSuratList(mapped);
+
+        // Gabungkan data: jangan hilangkan surat lokal yang belum masuk cloud
+        const cloudIds = new Set(mapped.map(m => m.id));
+        const cloudNomor = new Set(mapped.map(m => m.nomorSurat));
+        const unsyncedLocals = localData.filter(l => !cloudIds.has(l.id) && !cloudNomor.has(l.nomorSurat));
+        const combined = [...mapped, ...unsyncedLocals];
+
+        setSuratList(combined);
+        saveLocalSurat(combined);
+      } else {
+        if (error) {
+          console.warn('Supabase fetch notice:', error.message);
+          setCloudSynced(false);
+        }
       }
     } catch (e) {
-      console.error(e);
+      console.warn('Supabase fetch caught error:', e);
+      setCloudSynced(false);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const syncUnsyncedToCloud = async () => {
+    setIsSyncingCloud(true);
+    let syncedCount = 0;
+    try {
+      for (const s of suratList) {
+        const { data: existing } = await supabase
+          .from('dkm_surat_menyurat')
+          .select('id')
+          .eq('nomor_surat', s.nomorSurat);
+
+        if (!existing || existing.length === 0) {
+          const dbPayload = {
+            nomor_surat: s.nomorSurat,
+            jenis: s.jenis,
+            perihal: s.perihal,
+            tanggal: s.tanggal,
+            pengirim_penerima: s.pengirimPenerima,
+            penandatangan: s.penandatangan,
+            jabatan_ttd: s.jabatanTtd,
+            keterangan: s.keterangan,
+            file_url: s.fileUrl,
+            file_name: s.fileName,
+            status: s.status,
+            dibuat_oleh: s.dibuatOleh
+          };
+          const { error } = await supabase.from('dkm_surat_menyurat').insert([dbPayload]);
+          if (!error) syncedCount++;
+        }
+      }
+      setCloudSynced(true);
+      setSuccessMsg(syncedCount > 0 ? `${syncedCount} surat berhasil disinkronkan ke cloud Supabase!` : 'Semua surat sudah tersinkronisasi di cloud.');
+    } catch (err: any) {
+      console.warn('Cloud sync error:', err);
+      setCloudSynced(false);
+      alert('Gagal menyinkronkan ke cloud: ' + (err.message || 'Pastikan skrip SQL sudah dijalankan di Supabase.'));
+    } finally {
+      setIsSyncingCloud(false);
+      setTimeout(() => setSuccessMsg(''), 4000);
     }
   };
   const [showForm, setShowForm] = useState(false);
@@ -208,13 +303,95 @@ export const ModulSuratMenyurat: React.FC<ModulSuratMenyuratProps> = ({ adminRol
     if (!formTanggal) { setFormError('Tanggal wajib diisi!'); return; }
     if (!formPenandatangan) { setFormError('Penandatangan wajib dipilih!'); return; }
 
-    let nomorSurat = editItem ? editItem.nomorSurat : generateNomorSurat(formJenis, suratList);
-    
+    const nomorSurat = editItem ? editItem.nomorSurat : generateNomorSurat(formJenis, suratList);
     const pengurus = PENGURUS_DKM.find(p => p.nama === formPenandatangan);
     const jabatanTtd = formJabatanTtd || pengurus?.jabatan || '';
 
-    const newSurat: SuratItem = {
-      id: editItem ? editItem.id : '',
+    // ID fallback jika offline atau Supabase RLS belum dibuka
+    const fallbackId = editItem 
+      ? editItem.id 
+      : (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'srt-' + Date.now() + '-' + Math.random().toString(36).substring(2, 8));
+
+    let finalId = fallbackId;
+    let savedToCloud = false;
+    let finalFileUrl = formFileUrl;
+
+    // Jika ada file fisik PDF yang di-upload, simpan ke Supabase Storage (masjid-assets)
+    if (formFile) {
+      setIsUploading(true);
+      try {
+        const fileExt = formFile.name.split('.').pop() || 'pdf';
+        const cleanName = formFile.name.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 30);
+        const filePath = `surat/${Date.now()}_${cleanName}.${fileExt}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('masjid-assets')
+          .upload(filePath, formFile, {
+            cacheControl: '3600',
+            upsert: false
+          });
+
+        if (!uploadError) {
+          const { data: publicUrlData } = supabase.storage
+            .from('masjid-assets')
+            .getPublicUrl(filePath);
+          if (publicUrlData?.publicUrl) {
+            finalFileUrl = publicUrlData.publicUrl;
+          }
+        } else {
+          console.warn('Supabase storage upload notice (menggunakan fallback):', uploadError.message);
+        }
+      } catch (uploadErr) {
+        console.warn('Supabase storage upload error (menggunakan fallback):', uploadErr);
+      } finally {
+        setIsUploading(false);
+      }
+    }
+
+    const dbPayload = {
+      nomor_surat: nomorSurat,
+      jenis: formJenis,
+      perihal: formPerihal.trim(),
+      tanggal: formTanggal,
+      pengirim_penerima: formPengirimPenerima.trim(),
+      penandatangan: formPenandatangan,
+      jabatan_ttd: jabatanTtd,
+      keterangan: formKeterangan.trim(),
+      file_url: finalFileUrl,
+      file_name: formFileName,
+      status: formStatus,
+      dibuat_oleh: adminRole
+    };
+
+    // Percobaan simpan ke Supabase Cloud
+    try {
+      if (editItem) {
+        const { error } = await supabase.from('dkm_surat_menyurat').update(dbPayload).eq('id', editItem.id);
+        if (!error) {
+          savedToCloud = true;
+          setCloudSynced(true);
+        } else {
+          console.warn('Supabase update notice (RLS / offline):', error.message);
+          setCloudSynced(false);
+        }
+      } else {
+        const { data, error } = await supabase.from('dkm_surat_menyurat').insert([dbPayload]).select();
+        if (!error && data && data.length > 0) {
+          finalId = data[0].id;
+          savedToCloud = true;
+          setCloudSynced(true);
+        } else {
+          console.warn('Supabase insert notice (RLS / offline):', error?.message);
+          setCloudSynced(false);
+        }
+      }
+    } catch (err) {
+      console.warn('Supabase save error:', err);
+      setCloudSynced(false);
+    }
+
+    const savedSurat: SuratItem = {
+      id: finalId,
       nomorSurat,
       jenis: formJenis,
       perihal: formPerihal.trim(),
@@ -223,63 +400,53 @@ export const ModulSuratMenyurat: React.FC<ModulSuratMenyuratProps> = ({ adminRol
       penandatangan: formPenandatangan,
       jabatanTtd,
       keterangan: formKeterangan.trim(),
-      fileUrl: formFileUrl,
+      fileUrl: finalFileUrl,
       fileName: formFileName,
       status: formStatus,
       dibuatOleh: adminRole,
-      dibuatPada: toLocalDateString(),
+      dibuatPada: editItem?.dibuatPada || toLocalDateString(),
     };
 
-    try {
-      const dbPayload = {
-        nomor_surat: newSurat.nomorSurat,
-        jenis: newSurat.jenis,
-        perihal: newSurat.perihal,
-        tanggal: newSurat.tanggal,
-        pengirim_penerima: newSurat.pengirimPenerima,
-        penandatangan: newSurat.penandatangan,
-        jabatan_ttd: newSurat.jabatanTtd,
-        keterangan: newSurat.keterangan,
-        file_url: newSurat.fileUrl,
-        file_name: newSurat.fileName,
-        status: newSurat.status,
-        dibuat_oleh: newSurat.dibuatOleh
-      };
+    // Selalu simpan ke state lokal & LocalStorage agar form tidak terkunci/error!
+    setSuratList(prev => {
+      const updated = editItem
+        ? prev.map(s => s.id === editItem.id ? savedSurat : s)
+        : [savedSurat, ...prev];
+      saveLocalSurat(updated);
+      return updated;
+    });
 
-      if (editItem) {
-        const { error } = await supabase.from('dkm_surat_menyurat').update(dbPayload).eq('id', editItem.id);
-        if (error) throw error;
-        setSuratList(prev => prev.map(s => s.id === editItem.id ? {...newSurat, id: editItem.id} : s));
-      } else {
-        const { data, error } = await supabase.from('dkm_surat_menyurat').insert([dbPayload]).select();
-        if (error) throw error;
-        if (data && data.length > 0) {
-          setSuratList(prev => [{...newSurat, id: data[0].id}, ...prev]);
-        }
-      }
-      
-      setShowForm(false);
-      resetForm();
-      setSuccessMsg(editItem ? 'Surat berhasil diperbarui!' : 'Surat berhasil disimpan!');
-      setTimeout(() => setSuccessMsg(''), 3000);
-    } catch (err) {
-      setFormError('Gagal menyimpan surat ke database Supabase. Pastikan tabel dkm_surat_menyurat sudah dibuat.');
-      console.error(err);
+    setShowForm(false);
+    resetForm();
+
+    if (savedToCloud) {
+      setSuccessMsg(editItem ? 'Surat berhasil diperbarui di cloud database!' : 'Surat berhasil disimpan ke cloud database!');
+    } else {
+      setSuccessMsg(editItem 
+        ? 'Surat berhasil diperbarui (tersimpan di peramban). Jalankan skrip SQL Supabase untuk sinkronisasi antar perangkat.' 
+        : 'Surat berhasil disimpan (tersimpan di peramban). Jalankan skrip SQL Supabase untuk sinkronisasi antar perangkat.');
     }
+    setTimeout(() => setSuccessMsg(''), 5000);
   };
 
   const handleDelete = async (id: string) => {
     try {
       const { error } = await supabase.from('dkm_surat_menyurat').delete().eq('id', id);
-      if (error) throw error;
-      setSuratList(prev => prev.filter(s => s.id !== id));
-      setDeleteConfirm(null);
-      setSuccessMsg('Surat berhasil dihapus!');
-      setTimeout(() => setSuccessMsg(''), 3000);
+      if (error) {
+        console.warn('Supabase delete notice (RLS / offline):', error.message);
+      }
     } catch (err) {
-      alert('Gagal menghapus surat');
-      console.error(err);
+      console.warn('Supabase delete error:', err);
     }
+
+    setSuratList(prev => {
+      const updated = prev.filter(s => s.id !== id);
+      saveLocalSurat(updated);
+      return updated;
+    });
+    setDeleteConfirm(null);
+    setSuccessMsg('Surat berhasil dihapus!');
+    setTimeout(() => setSuccessMsg(''), 3000);
   };
 
   const handleDownload = (surat: SuratItem) => {
@@ -335,26 +502,60 @@ export const ModulSuratMenyurat: React.FC<ModulSuratMenyuratProps> = ({ adminRol
   return (
     <div className="p-4 max-w-6xl mx-auto">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
         <div>
           <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
             <FileText className="text-lime-600" size={22} />
             Manajemen Surat Menyurat
           </h2>
-          <p className="text-sm text-slate-500 mt-1">
-            DKM Masjid Citra Sentul Raya · Total {suratList.length} surat tersimpan
+          <p className="text-sm text-slate-500 mt-1 flex items-center gap-2 flex-wrap">
+            <span>DKM Masjid Citra Sentul Raya · Total {suratList.length} surat tersimpan</span>
+            {cloudSynced === true && (
+              <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-semibold">
+                <Database size={12} /> Cloud Aktif
+              </span>
+            )}
+            {cloudSynced === false && (
+              <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-semibold">
+                <Info size={12} /> Mode Penyimpanan Lokal
+              </span>
+            )}
           </p>
         </div>
-        {canEdit && (
-          <button
-            id="btn-tambah-surat"
-            onClick={openAddForm}
-            className="flex items-center gap-2 bg-lime-600 hover:bg-lime-700 text-white px-4 py-2 rounded-xl font-semibold text-sm transition-all shadow-md"
-          >
-            <PlusCircle size={16} /> Tambah Surat
-          </button>
-        )}
+        <div className="flex items-center gap-2 flex-wrap">
+          {canEdit && (
+            <button
+              id="btn-tambah-surat"
+              onClick={openAddForm}
+              className="flex items-center gap-2 bg-lime-600 hover:bg-lime-700 text-white px-4 py-2 rounded-xl font-semibold text-sm transition-all shadow-md"
+            >
+              <PlusCircle size={16} /> Tambah Surat
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* Cloud Status Notice if Local Mode */}
+      {cloudSynced === false && (
+        <div className="mb-4 p-3.5 bg-amber-50 border border-amber-200 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-sm text-amber-900 shadow-sm">
+          <div className="flex items-center gap-2.5">
+            <AlertTriangle className="text-amber-600 shrink-0" size={18} />
+            <div className="text-xs sm:text-sm">
+              <span className="font-bold">Mode Penyimpanan Lokal Aktif:</span> Surat tersimpan aman di browser ini. Hubungkan koneksi untuk menyinkronkan ke cloud Supabase.
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={syncUnsyncedToCloud}
+              disabled={isSyncingCloud}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-200 hover:bg-amber-300 text-amber-900 rounded-xl font-medium text-xs transition-colors"
+            >
+              <RefreshCw size={13} className={isSyncingCloud ? 'animate-spin' : ''} />
+              {isSyncingCloud ? 'Menyinkronkan...' : 'Sinkron ke Cloud'}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Success message */}
       {successMsg && (

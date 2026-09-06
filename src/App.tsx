@@ -229,20 +229,27 @@ export default function App() {
 
       // --- Cleanup Notifications ---
       if (donation) {
-        const nameMatcher = donation.namaDonatur || 'Hamba Allah';
-        const nominalStr = donation.nominal.toLocaleString('id-ID');
+        const nameMatcher = donation.namaDonatur && donation.namaDonatur !== 'Hamba Allah' ? donation.namaDonatur : '';
+        const nominalRaw = donation.nominal ? donation.nominal.toString() : '';
+        const nominalDot = donation.nominal ? donation.nominal.toLocaleString('id-ID') : '';
         try {
-          await supabase.from('notifications')
-            .delete()
-            .ilike('message', `%${nameMatcher}%`)
-            .ilike('message', `%${nominalStr}%`);
+          if (nameMatcher) {
+            await supabase.from('notifications').delete().ilike('message', `%${nameMatcher}%`);
+          } else if (nominalRaw) {
+            await supabase.from('notifications').delete().or(`message.ilike.%${nominalRaw}%,message.ilike.%${nominalDot}%`);
+          }
         } catch (e) {}
         
         try {
           const stored = localStorage.getItem('admin_notifications');
           if (stored) {
              const notifs = JSON.parse(stored);
-             const filtered = notifs.filter((n: any) => !(n.message.includes(nameMatcher) && n.message.includes(nominalStr)));
+             const filtered = notifs.filter((n: any) => {
+               const msg = n.message || '';
+               if (nameMatcher && msg.includes(nameMatcher)) return false;
+               if (nominalRaw && (msg.includes(nominalDot) || msg.includes(nominalRaw))) return false;
+               return true;
+             });
              localStorage.setItem('admin_notifications', JSON.stringify(filtered));
              window.dispatchEvent(new Event('storage'));
           }
@@ -622,26 +629,33 @@ export default function App() {
                   
                   // --- Cleanup Notifications ---
                   if (donasiToDelete) {
-                    const nameMatcher = donasiToDelete.namaDonatur || 'Hamba Allah';
-                    const nominalStr = donasiToDelete.nominal.toLocaleString('id-ID');
+                    const nameMatcher = donasiToDelete.namaDonatur && donasiToDelete.namaDonatur !== 'Hamba Allah' ? donasiToDelete.namaDonatur : '';
+                    const nominalRaw = donasiToDelete.nominal ? donasiToDelete.nominal.toString() : '';
+                    const nominalDot = donasiToDelete.nominal ? donasiToDelete.nominal.toLocaleString('id-ID') : '';
                     try {
-                      await supabase.from('notifications')
-                        .delete()
-                        .ilike('message', `%${nameMatcher}%`)
-                        .ilike('message', `%${nominalStr}%`);
+                      if (nameMatcher) {
+                        await supabase.from('notifications').delete().ilike('message', `%${nameMatcher}%`);
+                      } else if (nominalRaw) {
+                        await supabase.from('notifications').delete().or(`message.ilike.%${nominalRaw}%,message.ilike.%${nominalDot}%`);
+                      }
                     } catch (e) {}
                     
                     try {
                       const stored = localStorage.getItem('admin_notifications');
                       if (stored) {
                          const notifs = JSON.parse(stored);
-                         const filtered = notifs.filter((n: any) => !(n.message.includes(nameMatcher) && n.message.includes(nominalStr)));
+                         const filtered = notifs.filter((n: any) => {
+                           const msg = n.message || '';
+                           if (nameMatcher && msg.includes(nameMatcher)) return false;
+                           if (nominalRaw && (msg.includes(nominalDot) || msg.includes(nominalRaw))) return false;
+                           return true;
+                         });
                          localStorage.setItem('admin_notifications', JSON.stringify(filtered));
                          window.dispatchEvent(new Event('storage'));
                       }
                     } catch {}
                   }
-                  // -----------------------------
+                  // -------------------------------
 
                   logAudit('Pengurus DKM', adminRole.toUpperCase(), 'admin@masjid.id', 'HAPUS_DONASI', `Menghapus data donasi ID: ${id}`, 'bg-red-900/50 text-red-600');
                   alert('Data donasi berhasil dihapus.');

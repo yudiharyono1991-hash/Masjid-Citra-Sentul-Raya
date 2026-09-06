@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { LogOut, MonitorPlay, RefreshCw, Book, Calendar, Video, ShieldCheck, Settings, Users, Database, PlusCircle, Save, ArrowDownCircle, ArrowUpCircle, X, Maximize, FileText, Camera, Megaphone, Clock, Smartphone, UserCheck, Key, Search, Link2, Trash2, Moon, BookOpen, Scale, ClipboardList, Edit, Wallet, TrendingUp, TrendingDown, Activity, Heart, Building, LayoutDashboard, ChevronDown, Upload, Bell, CheckCircle2, MessageSquare } from 'lucide-react';
+import { LogOut, MonitorPlay, RefreshCw, Book, Calendar, Video, ShieldCheck, Settings, Users, Database, PlusCircle, Save, ArrowDownCircle, ArrowUpCircle, X, Maximize, FileText, Camera, Megaphone, Clock, Smartphone, UserCheck, Key, Search, Link2, Trash2, Moon, BookOpen, Scale, ClipboardList, Edit, Wallet, TrendingUp, TrendingDown, Activity, Heart, Building, LayoutDashboard, ChevronDown, Upload, Bell, CheckCircle2, CheckCheck, MessageSquare } from 'lucide-react';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import * as XLSX from 'xlsx';
@@ -169,13 +169,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   const fetchNotificationsFromSupabase = async () => {
     try {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('notifications')
         .select('*')
         .or(`user_role.eq.semua,user_role.eq.${adminRole.toLowerCase()}`)
         .order('created_at', { ascending: false })
         .limit(20);
-      if (data && data.length > 0) {
+      if (!error && data) {
         setNotifications(data);
         localStorage.setItem('admin_notifications', JSON.stringify(data));
       }
@@ -229,10 +229,55 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     };
   }, [adminRole]);
   
-  const markNotificationAsRead = (id: string) => {
+  const markNotificationAsRead = async (id: string) => {
     const updated = notifications.map(n => n.id === id ? { ...n, is_read: true } : n);
     setNotifications(updated);
     try { localStorage.setItem('admin_notifications', JSON.stringify(updated)); } catch {}
+    try {
+      await supabase.from('notifications').update({ is_read: true }).eq('id', id);
+    } catch (e) {
+      console.warn('Failed to update notification read status in Supabase:', e);
+    }
+  };
+
+  const markAllNotificationsAsRead = async () => {
+    const updated = notifications.map(n => ({ ...n, is_read: true }));
+    setNotifications(updated);
+    try { localStorage.setItem('admin_notifications', JSON.stringify(updated)); } catch {}
+    try {
+      const unreadIds = notifications.filter(n => !n.is_read).map(n => n.id);
+      if (unreadIds.length > 0) {
+        await supabase.from('notifications').update({ is_read: true }).in('id', unreadIds);
+      }
+    } catch (e) {
+      console.warn('Failed to mark all notifications as read in Supabase:', e);
+    }
+  };
+
+  const deleteNotification = async (id: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    const updated = notifications.filter(n => n.id !== id);
+    setNotifications(updated);
+    try { localStorage.setItem('admin_notifications', JSON.stringify(updated)); } catch {}
+    try {
+      await supabase.from('notifications').delete().eq('id', id);
+    } catch (err) {
+      console.warn('Failed to delete notification in Supabase:', err);
+    }
+  };
+
+  const clearAllNotifications = async () => {
+    if (!window.confirm('Hapus seluruh riwayat notifikasi?')) return;
+    const ids = notifications.map(n => n.id);
+    setNotifications([]);
+    try { localStorage.removeItem('admin_notifications'); } catch {}
+    try {
+      if (ids.length > 0) {
+        await supabase.from('notifications').delete().in('id', ids);
+      }
+    } catch (err) {
+      console.warn('Failed to clear notifications in Supabase:', err);
+    }
   };
   const unreadNotificationsCount = notifications.filter(n => !n.is_read).length;
   const [tvConfig, setTvConfig] = useState({ 
@@ -1494,36 +1539,107 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       {showNotificationModal && (
         <div className="fixed inset-0 z-[100] flex items-start justify-end pt-16 pr-6 bg-slate-900/20 backdrop-blur-sm" onClick={() => setShowNotificationModal(false)}>
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm border border-slate-200 overflow-hidden flex flex-col max-h-[80vh]" onClick={e => e.stopPropagation()}>
-            <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
-              <h3 className="font-bold text-slate-800 flex items-center gap-2">
-                <Bell className="w-4 h-4 text-lime-600" />
-                Notifikasi
-              </h3>
-              <button onClick={() => setShowNotificationModal(false)} className="text-slate-400 hover:text-red-500 transition-colors">
-                <X className="w-5 h-5" />
-              </button>
+            <div className="p-3.5 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+              <div>
+                <h3 className="font-bold text-slate-800 flex items-center gap-2 text-sm">
+                  <Bell className="w-4 h-4 text-lime-600" />
+                  Notifikasi
+                </h3>
+                {notifications.length > 0 && (
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    {unreadNotificationsCount} belum dibaca dari {notifications.length} notifikasi
+                  </p>
+                )}
+              </div>
+              <div className="flex items-center gap-1">
+                {unreadNotificationsCount > 0 && (
+                  <button
+                    onClick={markAllNotificationsAsRead}
+                    className="p-1.5 hover:bg-slate-200 text-slate-600 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors"
+                    title="Tandai semua sudah dibaca"
+                  >
+                    <CheckCheck className="w-3.5 h-3.5 text-lime-600" />
+                  </button>
+                )}
+                {notifications.length > 0 && (
+                  <button
+                    onClick={clearAllNotifications}
+                    className="p-1.5 hover:bg-red-50 text-slate-400 hover:text-red-500 rounded-lg text-xs transition-colors"
+                    title="Hapus semua notifikasi"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                )}
+                <button onClick={() => setShowNotificationModal(false)} className="p-1.5 text-slate-400 hover:text-slate-600 transition-colors">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
             </div>
-            <div className="overflow-y-auto flex-1 p-2">
+            <div className="overflow-y-auto flex-1 p-2 divide-y divide-slate-50">
               {notifications.length === 0 ? (
                 <div className="p-8 text-center text-slate-500">
                   <Bell className="w-8 h-8 mx-auto mb-2 opacity-20" />
-                  <p className="text-sm">Tidak ada notifikasi baru</p>
+                  <p className="text-sm font-semibold">Tidak ada notifikasi baru</p>
+                  <p className="text-xs text-slate-400 mt-1">Semua notifikasi telah bersih</p>
                 </div>
               ) : (
                 notifications.map(n => (
-                  <div key={n.id} onClick={() => { markNotificationAsRead(n.id); if(n.link_to) { window.location.hash = n.link_to; setShowNotificationModal(false); } }} className={`p-3 rounded-lg mb-1 cursor-pointer transition-colors flex gap-3 ${n.is_read ? 'bg-white hover:bg-slate-50' : 'bg-lime-50 hover:bg-lime-100 border border-lime-100'}`}>
-                    <div className="mt-1">
-                      {n.is_read ? <CheckCircle2 className="w-4 h-4 text-slate-300" /> : <div className="w-2 h-2 rounded-full bg-red-500 mt-1"></div>}
+                  <div 
+                    key={n.id} 
+                    onClick={() => { 
+                      markNotificationAsRead(n.id); 
+                      if(n.link_to) { 
+                        window.location.hash = n.link_to; 
+                        setShowNotificationModal(false); 
+                      } 
+                    }} 
+                    className={`p-3 rounded-lg mb-1 cursor-pointer transition-all flex items-start gap-2.5 group ${n.is_read ? 'bg-white hover:bg-slate-50' : 'bg-lime-50/80 hover:bg-lime-100/70 border border-lime-200/60'}`}
+                  >
+                    <div className="mt-1 shrink-0">
+                      {n.is_read ? (
+                        <CheckCircle2 className="w-4 h-4 text-slate-300" />
+                      ) : (
+                        <div className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse"></div>
+                      )}
                     </div>
-                    <div>
-                      <p className={`text-sm ${n.is_read ? 'text-slate-600' : 'text-slate-800 font-bold'}`}>{n.title}</p>
-                      <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">{n.message}</p>
-                      <span className="text-xs text-slate-400 mt-2 block">{new Date(n.created_at).toLocaleString('id-ID')}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-1">
+                        <p className={`text-sm leading-tight ${n.is_read ? 'text-slate-600 font-medium' : 'text-slate-900 font-bold'}`}>
+                          {n.title}
+                        </p>
+                        <button
+                          onClick={(e) => deleteNotification(n.id, e)}
+                          className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded transition-all shrink-0"
+                          title="Hapus notifikasi ini"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                      <p className="text-xs text-slate-500 mt-1 line-clamp-2 leading-relaxed">{n.message}</p>
+                      <span className="text-[10px] text-slate-400 mt-1.5 block font-mono">
+                        {n.created_at ? new Date(n.created_at).toLocaleString('id-ID') : ''}
+                      </span>
                     </div>
                   </div>
                 ))
               )}
             </div>
+            {notifications.length > 0 && (
+              <div className="p-2.5 border-t border-slate-100 bg-slate-50 flex justify-between items-center text-xs text-slate-500 px-3">
+                <button
+                  onClick={markAllNotificationsAsRead}
+                  className="text-lime-700 hover:text-lime-800 font-medium hover:underline cursor-pointer"
+                >
+                  Tandai semua dibaca
+                </button>
+                <button
+                  onClick={clearAllNotifications}
+                  className="text-red-500 hover:text-red-600 font-medium hover:underline cursor-pointer"
+                >
+                  Bersihkan semua
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
