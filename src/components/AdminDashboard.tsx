@@ -2479,8 +2479,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <h3 className="font-bold text-slate-800 mt-3 mb-2">{p.judul}</h3>
                     {p.targetRp > 0 ? (
                       <>
-                        <div className="w-full bg-slate-100 rounded-full h-2 mb-2"><div className="bg-lime-500 h-2 rounded-full" style={{ width: `${Math.min((p.terkumpulRp / p.targetRp) * 100, 100)}%` }}></div></div>
-                        <div className="flex justify-between text-xs font-semibold"><span className="text-lime-700">{Math.round((p.terkumpulRp / p.targetRp) * 100)}% Terkumpul</span><span className="text-slate-500">{formatRp(p.targetRp)}</span></div>
+                        <div className="w-full bg-slate-100 rounded-full h-2 mb-2"><div className="bg-lime-500 h-2 rounded-full" style={{ width: `${Math.min(p.terkumpulPersen ?? Math.round((p.terkumpulRp / p.targetRp) * 100), 100)}%` }}></div></div>
+                        <div className="flex justify-between text-xs font-semibold"><span className="text-lime-700">{p.terkumpulPersen ?? Math.round((p.terkumpulRp / p.targetRp) * 100)}% Terkumpul</span><span className="text-slate-500">{formatRp(p.targetRp)}</span></div>
                       </>
                     ) : (
                       <div className="flex justify-between text-xs font-semibold"><span className="text-lime-700">{formatRp(p.terkumpulRp)} Terkumpul</span><span className="text-slate-500">Tanpa Target</span></div>

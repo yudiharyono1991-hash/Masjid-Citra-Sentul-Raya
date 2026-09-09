@@ -201,6 +201,7 @@ export const ModulSuratMenyurat: React.FC<ModulSuratMenyuratProps> = ({ adminRol
   const [filterJenis, setFilterJenis] = useState('semua');
   const [filterStatus, setFilterStatus] = useState('semua');
   const [previewSurat, setPreviewSurat] = useState<SuratItem | null>(null);
+  const [detailSurat, setDetailSurat] = useState<SuratItem | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState('');
 
@@ -654,23 +655,22 @@ export const ModulSuratMenyurat: React.FC<ModulSuratMenyuratProps> = ({ adminRol
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-center gap-1">
+                        {/* Tombol Lihat Detail - selalu tampil */}
+                        <button
+                          onClick={() => setDetailSurat(surat)}
+                          className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                          title="Lihat Detail Surat"
+                        >
+                          <Eye size={14} />
+                        </button>
                         {surat.fileUrl && (
-                          <>
-                            <button
-                              onClick={() => setPreviewSurat(surat)}
-                              className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                              title="Preview"
-                            >
-                              <Eye size={14} />
-                            </button>
-                            <button
-                              onClick={() => handleDownload(surat)}
-                              className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                              title="Download"
-                            >
-                              <Download size={14} />
-                            </button>
-                          </>
+                          <button
+                            onClick={() => handleDownload(surat)}
+                            className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                            title="Download PDF"
+                          >
+                            <Download size={14} />
+                          </button>
                         )}
                         {canEdit && (
                           <>
@@ -912,7 +912,116 @@ export const ModulSuratMenyurat: React.FC<ModulSuratMenyuratProps> = ({ adminRol
         </div>
       )}
 
-      {/* Preview Modal */}
+      {/* Detail Surat Modal */}
+      {detailSurat && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between p-5 border-b border-slate-200">
+              <div>
+                <h3 className="text-lg font-bold text-slate-800">Detail Surat</h3>
+                <p className="text-xs font-mono text-slate-500 mt-0.5">{detailSurat.nomorSurat}</p>
+              </div>
+              <div className="flex items-center gap-2">
+                {detailSurat.fileUrl && (
+                  <button
+                    onClick={() => handleDownload(detailSurat)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-lime-600 hover:bg-lime-700 text-white rounded-lg text-sm font-medium transition-colors"
+                  >
+                    <Download size={14} /> Download PDF
+                  </button>
+                )}
+                <button onClick={() => setDetailSurat(null)} className="p-2 hover:bg-slate-100 rounded-lg transition-colors text-slate-500">
+                  <X size={18} />
+                </button>
+              </div>
+            </div>
+
+            {/* Scrollable Body */}
+            <div className="overflow-y-auto flex-1">
+              {/* Info Grid */}
+              <div className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-4 border-b border-slate-100">
+                <div>
+                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Jenis Surat</p>
+                  <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${getJenisBadgeColor(detailSurat.jenis)}`}>
+                    {getJenisLabel(detailSurat.jenis)}
+                  </span>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Status</p>
+                  <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
+                    detailSurat.status === 'final' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
+                  }`}>
+                    {detailSurat.status === 'final' ? 'Final / Resmi' : 'Draft'}
+                  </span>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Perihal</p>
+                  <p className="text-sm font-semibold text-slate-800">{detailSurat.perihal}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Tanggal</p>
+                  <p className="text-sm font-semibold text-slate-800">{formatTanggal(detailSurat.tanggal)}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">
+                    {detailSurat.jenis === 'masuk' ? 'Pengirim' : 'Ditujukan Kepada'}
+                  </p>
+                  <p className="text-sm font-semibold text-slate-800">{detailSurat.pengirimPenerima || '-'}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Penandatangan</p>
+                  <p className="text-sm font-semibold text-slate-800">{detailSurat.penandatangan || '-'}</p>
+                  <p className="text-xs text-slate-500">{detailSurat.jabatanTtd}</p>
+                </div>
+                {detailSurat.keterangan && (
+                  <div className="sm:col-span-2">
+                    <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Keterangan</p>
+                    <p className="text-sm text-slate-700 bg-slate-50 rounded-xl p-3">{detailSurat.keterangan}</p>
+                  </div>
+                )}
+                <div>
+                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">File PDF</p>
+                  <p className="text-sm text-slate-700">
+                    {detailSurat.fileName ? (
+                      <span className="flex items-center gap-1.5 text-green-700">
+                        <CheckCircle size={13} /> {detailSurat.fileName}
+                      </span>
+                    ) : (
+                      <span className="text-slate-400 italic">Tidak ada file</span>
+                    )}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Dibuat Oleh</p>
+                  <p className="text-sm text-slate-700 capitalize">{detailSurat.dibuatOleh} · {formatTanggal(detailSurat.dibuatPada)}</p>
+                </div>
+              </div>
+
+              {/* PDF Preview inline */}
+              {detailSurat.fileUrl ? (
+                <div className="p-5">
+                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Preview Isi Surat (PDF)</p>
+                  <iframe
+                    src={detailSurat.fileUrl}
+                    className="w-full rounded-xl border border-slate-200 shadow-sm"
+                    style={{ height: '480px' }}
+                    title="Preview PDF Surat"
+                  />
+                </div>
+              ) : (
+                <div className="p-5 flex flex-col items-center justify-center text-center text-slate-400 py-10">
+                  <FileText size={40} className="mb-3 opacity-30" />
+                  <p className="text-sm font-medium">File PDF belum diunggah</p>
+                  <p className="text-xs mt-1">Klik tombol Edit untuk menambahkan file PDF surat ini.</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Preview Modal (fullscreen PDF) */}
       {previewSurat && (
         <div className="fixed inset-0 z-50 flex flex-col bg-black/80">
           <div className="flex items-center justify-between p-3 bg-slate-900 text-white">
