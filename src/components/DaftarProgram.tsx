@@ -34,6 +34,13 @@ export const DaftarProgram: React.FC<DaftarProgramProps> = ({ programs, onDonate
   const [showQrisZoom, setShowQrisZoom] = useState(false);
   const [isQrisZoomed, setIsQrisZoomed] = useState(false);
   const [copiedNominal, setCopiedNominal] = useState(false);
+  const [copiedRek, setCopiedRek] = useState(false);
+
+  const handleCopyRek = (rek: string) => {
+    navigator.clipboard.writeText(rek);
+    setCopiedRek(true);
+    setTimeout(() => setCopiedRek(false), 2000);
+  };
 
   const handleCopyNominal = () => {
     navigator.clipboard.writeText(nominal);
@@ -288,6 +295,21 @@ export const DaftarProgram: React.FC<DaftarProgramProps> = ({ programs, onDonate
                             <div>
                               <p className="text-xs font-black text-white leading-tight">Scan & Bayar Sekarang</p>
                               <p className="text-xs text-emerald-300 mt-0.5">a.n. Masjid Citra Sentul Raya</p>
+                              <div className="mt-1.5 flex items-center justify-between gap-2 bg-emerald-900/90 border border-emerald-700/80 rounded-lg px-2.5 py-1.5 shadow-inner">
+                                <div className="min-w-0">
+                                  <span className="text-[9px] text-emerald-300 font-semibold block leading-tight">Rekening Bank BSI:</span>
+                                  <span className="text-xs font-mono font-black text-lime-300 tracking-wider">7257159102</span>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => handleCopyRek('7257159102')}
+                                  title="Salin Nomor Rekening BSI"
+                                  className="px-2 py-1 bg-lime-400 hover:bg-lime-300 active:scale-95 text-emerald-950 text-[10px] font-black rounded-md flex items-center gap-1 transition-all cursor-pointer shadow-xs flex-shrink-0"
+                                >
+                                  {copiedRek ? <Check className="w-2.5 h-2.5 text-emerald-950" /> : <Copy className="w-2.5 h-2.5" />}
+                                  <span>{copiedRek ? 'Tersalin' : 'Salin'}</span>
+                                </button>
+                              </div>
                             </div>
                             <div>
                               <span className="text-[8px] font-mono font-bold text-emerald-300 bg-emerald-900/60 px-2 py-0.5 rounded border border-emerald-800 inline-block">
@@ -349,6 +371,57 @@ export const DaftarProgram: React.FC<DaftarProgramProps> = ({ programs, onDonate
                             <span>PDF</span>
                           </button>
                         </div>
+                      </div>
+                    )}
+
+                    {metode === 'Bank Transfer (BSI)' && (
+                      <div className="bg-emerald-950 border border-emerald-700/60 rounded-2xl p-4 animate-in fade-in space-y-3 text-white">
+                        <div className="flex items-center justify-between border-b border-emerald-800 pb-2.5">
+                          <div>
+                            <span className="text-[10px] text-emerald-300 block font-medium">Bank Tujuan</span>
+                            <span className="text-xs font-bold text-white">Bank Syariah Indonesia (BSI)</span>
+                          </div>
+                          <div className="text-right">
+                            <span className="text-[10px] text-emerald-300 block font-medium">Atas Nama Rekening</span>
+                            <span className="text-xs font-bold text-lime-300">Masjid Citra Sentul Raya</span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between bg-emerald-900/90 p-3 rounded-xl border border-emerald-700 gap-2">
+                          <div>
+                            <span className="text-[10px] text-emerald-300 font-semibold block uppercase">Nomor Rekening BSI</span>
+                            <span className="text-base sm:text-lg font-mono font-black text-lime-300 tracking-wider">
+                              7257159102
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleCopyRek('7257159102')}
+                            className="px-3 py-1.5 bg-lime-400 hover:bg-lime-300 active:scale-95 text-emerald-950 text-xs font-bold rounded-lg flex items-center gap-1.5 transition-all cursor-pointer flex-shrink-0"
+                          >
+                            {copiedRek ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                            <span>{copiedRek ? 'Tersalin!' : 'Salin No. Rek'}</span>
+                          </button>
+                        </div>
+
+                        {nominal && parseInt(nominal) > 0 && (
+                          <div className="bg-emerald-900/40 p-2.5 rounded-xl border border-emerald-800/60 flex items-center justify-between text-xs">
+                            <div>
+                              <span className="text-[9px] text-emerald-300 block">Nominal Ditransfer:</span>
+                              <span className="text-sm font-black text-white">
+                                {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(parseInt(nominal))}
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={handleCopyNominal}
+                              className="px-2 py-1 bg-emerald-800 hover:bg-emerald-700 text-lime-300 text-xs font-bold rounded-md flex items-center gap-1 border border-emerald-600 transition-all cursor-pointer"
+                            >
+                              {copiedNominal ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                              <span>{copiedNominal ? 'Tersalin' : 'Salin Nominal'}</span>
+                            </button>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -446,6 +519,10 @@ export const DaftarProgram: React.FC<DaftarProgramProps> = ({ programs, onDonate
               </div>
               <h3 className="text-lg font-black text-white tracking-tight">MASJID CITRA SENTUL RAYA</h3>
               <p className="text-emerald-200 text-[11px] mt-0.5">Dewan Kemakmuran Masjid (DKM)</p>
+              <div className="mt-1.5 inline-flex items-center gap-1.5 bg-emerald-900/80 border border-emerald-700/80 px-3 py-1 rounded-full text-xs">
+                <span className="text-emerald-200">Rekening BSI:</span>
+                <span className="font-mono font-black text-lime-300">7257159102</span>
+              </div>
 
               {/* QR Frame */}
               <div className="mt-5 flex justify-center">

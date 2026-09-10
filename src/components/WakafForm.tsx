@@ -532,7 +532,10 @@ export const WakafForm: React.FC<WakafFormProps> = ({ onAddMuwakif, onShowCertif
                             <span>Scan QRIS untuk Wakaf</span>
                             <span className="text-[9px] font-normal text-emerald-300 bg-emerald-900/60 px-2 py-0.5 rounded border border-emerald-800">DKM Resmi</span>
                           </h4>
-                          <p className="text-xs text-emerald-300 mt-1 max-w-sm mx-auto sm:mx-0">
+                          <p className="text-xs text-lime-300 font-semibold mt-1">
+                            a.n. Masjid Citra Sentul Raya • Rek BSI: <span className="font-mono font-bold">7257159102</span>
+                          </p>
+                          <p className="text-xs text-emerald-300 mt-0.5 max-w-sm mx-auto sm:mx-0">
                             Pindai kode QR menggunakan aplikasi e-wallet atau mobile banking Anda untuk melakukan transfer instan.
                           </p>
                         </div>
@@ -716,6 +719,10 @@ export const WakafForm: React.FC<WakafFormProps> = ({ onAddMuwakif, onShowCertif
               </div>
               <h3 className="text-lg font-black text-white tracking-tight">MASJID CITRA SENTUL RAYA</h3>
               <p className="text-emerald-200 text-[11px] mt-0.5">Dewan Kemakmuran Masjid (DKM)</p>
+              <div className="mt-1.5 inline-flex items-center gap-1.5 bg-emerald-900/80 border border-emerald-700/80 px-3 py-1 rounded-full text-xs">
+                <span className="text-emerald-200">Rekening BSI:</span>
+                <span className="font-mono font-black text-lime-300">7257159102</span>
+              </div>
 
               {/* Floating QR Frame — overlaps into white section */}
               <div className="mt-5 flex justify-center">
