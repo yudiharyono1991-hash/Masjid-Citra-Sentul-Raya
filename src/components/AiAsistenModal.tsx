@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Bot, Send, X, Sparkles, User, RefreshCw } from 'lucide-react';
 import { ChatMessage } from '../types';
+import { useKontakPanitia } from '../hooks/useKontakPanitia';
 
 interface AiAsistenModalProps {
   isOpen: boolean;
@@ -13,6 +14,7 @@ export const AiAsistenModal: React.FC<AiAsistenModalProps> = ({
   onClose,
   onOpenWakaf,
 }) => {
+  const { kontakList } = useKontakPanitia();
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: '1',
@@ -45,7 +47,7 @@ export const AiAsistenModal: React.FC<AiAsistenModalProps> = ({
     const q = query.toLowerCase();
 
     if (q.includes('rekening') || q.includes('bsi') || q.includes('donasi') || q.includes('wakaf') || q.includes('transfer')) {
-      return `Assalamu'alaikum Warahmatullahi Wabarakatuh.\n\nUntuk Donasi & Wakaf Pembangunan Masjid Citra Sentul Raya dapat disalurkan melalui:\n• Bank: **Bank Syariah Indonesia (BSI)**\n• No. Rekening: **7257159102**\n• Atas Nama: **Masjid Citra Sentul Raya**\n\nUntuk konfirmasi donasi atau informasi lebih lanjut, silakan hubungi pengurus:\n- Pak Leo: +62 812-1920-0400\n\nJazakumullah Khairan Katsiran atas kebaikan Bapak/Ibu!`;
+      return `Assalamu'alaikum Warahmatullahi Wabarakatuh.\n\nUntuk Donasi & Wakaf Pembangunan Masjid Citra Sentul Raya dapat disalurkan melalui:\n• Bank: **Bank Syariah Indonesia (BSI)**\n• No. Rekening: **7257159102**\n• Atas Nama: **Masjid Citra Sentul Raya**\n\nUntuk konfirmasi donasi atau informasi lebih lanjut, silakan hubungi pengurus:\n${kontakList.map((k: { nama: string; noTelepon: string }) => `- ${k.nama}: ${k.noTelepon}`).join('\n')}\n\nJazakumullah Khairan Katsiran atas kebaikan Bapak/Ibu!`;
     }
 
     if (q.includes('jadwal') || q.includes('shalat') || q.includes('solat') || q.includes('subuh') || q.includes('dzuhur') || q.includes('ashar') || q.includes('maghrib') || q.includes('isya') || q.includes('kiblat')) {

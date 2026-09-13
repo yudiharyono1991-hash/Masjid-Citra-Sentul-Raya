@@ -412,6 +412,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           { id: 'admin_utama', label: 'Utama & Keamanan', action: () => { setActiveMenu('pengaturan'); setSettingTab('admin_utama'); } },
           { id: 'hero', label: 'Foto Animasi Beranda', action: () => { setActiveMenu('pengaturan'); setSettingTab('hero'); } },
           { id: 'visibilitas', label: 'Visibilitas Modul', action: () => { setActiveMenu('pengaturan'); setSettingTab('visibilitas'); } },
+          { id: 'kontak_panitia', label: 'Kontak Panitia', action: () => { setActiveMenu('pengaturan'); setSettingTab('kontak_panitia'); } },
           { id: 'qr', label: 'Cetak QR Aplikasi', action: () => { setActiveMenu('pengaturan'); setSettingTab('qr'); } },
           { id: 'sponsor', label: 'Sponsor & Mitra', action: () => { setActiveMenu('pengaturan'); setSettingTab('sponsor'); } },
           { id: 'sejarah', label: 'Profil & Sejarah Masjid', action: () => { setActiveMenu('pengaturan'); setSettingTab('sejarah'); } },
@@ -440,6 +441,77 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     const p = new URLSearchParams(window.location.search);
     return p.get('tab') || 'pengumuman';
   });
+
+  // ---- KONTAK PANITIA STATE (Supabase) ----
+  const [kontakPanitia, setKontakPanitia] = useState<{ id?: string; nama: string; noTelepon: string; noWa: string; urutan?: number }[]>([]);
+  const [isLoadingKontak, setIsLoadingKontak] = useState(true);
+  const [kontakSaveStatus, setKontakSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+
+  useEffect(() => {
+    const fetchKontak = async () => {
+      try {
+        const { data, error } = await supabase.from('kontak_panitia').select('*').order('urutan', { ascending: true });
+        if (!error && data && data.length > 0) {
+          setKontakPanitia(data.map((item: any) => ({
+            id: item.id,
+            nama: item.nama,
+            noTelepon: item.no_telepon,
+            noWa: item.no_wa,
+            urutan: item.urutan
+          })));
+        } else {
+          setKontakPanitia([
+            { nama: 'Leo', noTelepon: '+62 812-1920-0400', noWa: '6281219200400' },
+            { nama: 'Andi', noTelepon: '+62 822-6066-7751', noWa: '6282260667751' },
+            { nama: 'Hendra', noTelepon: '+62 858-8189-3650', noWa: '6285881893650' }
+          ]);
+        }
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setIsLoadingKontak(false);
+      }
+    };
+    fetchKontak();
+  }, []);
+
+  const handleSaveKontak = async () => {
+    setKontakSaveStatus('saving');
+    try {
+      // 1. Delete all existing
+      await supabase.from('kontak_panitia').delete().gte('urutan', 0);
+      
+      // 2. Insert new
+      const insertData = kontakPanitia.map((k, idx) => ({
+        nama: k.nama,
+        no_telepon: k.noTelepon,
+        no_wa: k.noWa,
+        urutan: idx + 1
+      }));
+      const { error } = await supabase.from('kontak_panitia').insert(insertData);
+      
+      if (error) throw error;
+      setKontakSaveStatus('saved');
+      setTimeout(() => setKontakSaveStatus('idle'), 3000);
+    } catch (err) {
+      console.error(err);
+      setKontakSaveStatus('error');
+    }
+  };
+
+  const handleKontakChange = (idx: number, field: 'nama' | 'noTelepon' | 'noWa', value: string) => {
+    setKontakPanitia(prev => prev.map((k, i) => i === idx ? { ...k, [field]: value } : k));
+  };
+
+  const handleAddKontak = () => {
+    setKontakPanitia(prev => [...prev, { nama: '', noTelepon: '', noWa: '' }]);
+  };
+
+  const handleRemoveKontak = (idx: number) => {
+    if (kontakPanitia.length <= 1) return;
+    setKontakPanitia(prev => prev.filter((_, i) => i !== idx));
+  };
+  // ---- END KONTAK PANITIA STATE ----
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -3190,6 +3262,112 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       </div>
                     ))}
                   </div>
+                </div>
+              )}
+
+              {settingTab === 'kontak_panitia' && (
+                <div className="animate-in fade-in space-y-6">
+                  <div>
+                    <h2 className="text-2xl font-bold text-slate-800 mb-1">Manajemen Kontak Panitia</h2>
+                    <p className="text-slate-500 text-sm">Kelola nama dan nomor WhatsApp panitia yang tampil di halaman publik (Lokasi &amp; Kontak, Footer, AI Asisten, dan E-Sertifikat).</p>
+                  </div>
+
+                  <div className="bg-lime-50 border border-lime-200 rounded-xl p-4 text-sm text-lime-800">
+                    <strong>💡 Info:</strong> Setelah menyimpan, perubahan akan langsung aktif di seluruh halaman website saat halaman dimuat ulang.
+                  </div>
+
+                  <div className="space-y-4">
+                    {kontakPanitia.map((kontak, idx) => (
+                      <div key={idx} className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-extrabold text-lime-700 uppercase tracking-wider">Panitia #{idx + 1}</span>
+                          {kontakPanitia.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveKontak(idx)}
+                              className="text-xs text-red-500 hover:text-red-700 font-bold flex items-center gap-1 cursor-pointer"
+                            >
+                              <X className="w-3.5 h-3.5" /> Hapus
+                            </button>
+                          )}
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          <div>
+                            <label className="text-xs font-semibold text-slate-600 block mb-1">Nama (tanpa gelar/titel)</label>
+                            <input
+                              type="text"
+                              value={kontak.nama}
+                              onChange={e => handleKontakChange(idx, 'nama', e.target.value)}
+                              placeholder="Contoh: Leo"
+                              className="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-lime-500"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-xs font-semibold text-slate-600 block mb-1">No. Telepon (tampil di website)</label>
+                            <input
+                              type="text"
+                              value={kontak.noTelepon}
+                              onChange={e => handleKontakChange(idx, 'noTelepon', e.target.value)}
+                              placeholder="Contoh: +62 812-1920-0400"
+                              className="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-lime-500"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-xs font-semibold text-slate-600 block mb-1">No. WA (link wa.me, tanpa + atau -)</label>
+                            <input
+                              type="text"
+                              value={kontak.noWa}
+                              onChange={e => handleKontakChange(idx, 'noWa', e.target.value)}
+                              placeholder="Contoh: 6281219200400"
+                              className="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-lime-500"
+                            />
+                          </div>
+                        </div>
+                        <div className="pt-2 border-t border-slate-100">
+                          <a
+                            href={`https://wa.me/${kontak.noWa}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-lime-700 hover:text-lime-900 font-semibold flex items-center gap-1"
+                          >
+                            <MessageSquare className="w-3.5 h-3.5" />
+                            Preview Link: wa.me/{kontak.noWa}
+                          </a>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <button
+                      type="button"
+                      onClick={handleAddKontak}
+                      className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm border border-slate-200 transition-colors cursor-pointer"
+                    >
+                      <PlusCircle className="w-4 h-4" /> Tambah Panitia
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSaveKontak}
+                      className={`flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl font-bold text-sm transition-colors cursor-pointer shadow-md ${
+                        kontakSaveStatus === 'saved'
+                          ? 'bg-emerald-600 text-white'
+                          : kontakSaveStatus === 'error'
+                          ? 'bg-red-600 text-white'
+                          : 'bg-lime-600 hover:bg-lime-700 text-white'
+                      }`}
+                    >
+                      <Save className="w-4 h-4" />
+                      {kontakSaveStatus === 'saved' ? '✓ Tersimpan!' : kontakSaveStatus === 'error' ? 'Gagal Simpan' : 'Simpan Kontak Panitia'}
+                    </button>
+                  </div>
+
+                  {kontakSaveStatus === 'saved' && (
+                    <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-sm text-emerald-700 flex items-center gap-2">
+                      <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                      <span>Data kontak berhasil disimpan. Muat ulang halaman publik untuk melihat perubahan.</span>
+                    </div>
+                  )}
                 </div>
               )}
 

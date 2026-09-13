@@ -2,6 +2,7 @@ import React from 'react';
 import { X, Printer, Download, Sparkles, ShieldCheck } from 'lucide-react';
 import { Muwakif } from '../types';
 import { formatRupiah, formatTanggalIndo } from '../utils/formatters';
+import { useKontakPanitia } from '../hooks/useKontakPanitia';
 
 interface ECertificateModalProps {
   muwakif: Muwakif | null;
@@ -9,6 +10,7 @@ interface ECertificateModalProps {
 }
 
 export const ECertificateModal: React.FC<ECertificateModalProps> = ({ muwakif, onClose }) => {
+  const { kontakList } = useKontakPanitia();
   if (!muwakif) return null;
 
   const handlePrint = () => {
@@ -121,7 +123,7 @@ export const ECertificateModal: React.FC<ECertificateModalProps> = ({ muwakif, o
               <div className="space-y-8">
                 <span className="text-slate-500 block text-xs">Ketua Panitia Pembangunan</span>
                 <div className="font-bold text-slate-900 underline">
-                  Pak Leo / Bpk. Grandis
+                  {kontakList.map((k: {nama: string}) => k.nama).join(' / ')}
                 </div>
               </div>
               <div className="space-y-8">

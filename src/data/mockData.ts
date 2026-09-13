@@ -272,3 +272,9 @@ export const PAKET_WAKAF_LIST = [
     icon: 'Columns',
   },
 ];
+
+export const KONTAK_PANITIA = [
+  { nama: 'Leo', noTelepon: '+62 812-1920-0400', noWa: '6281219200400' },
+  { nama: 'Andi', noTelepon: '+62 822-6066-7751', noWa: '6282260667751' },
+  { nama: 'Hendra', noTelepon: '+62 858-8189-3650', noWa: '6285881893650' },
+];

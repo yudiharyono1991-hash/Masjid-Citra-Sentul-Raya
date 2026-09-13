@@ -10,14 +10,16 @@ import {
   ExternalLink,
   Building,
 } from 'lucide-react';
+import { useKontakPanitia } from '../hooks/useKontakPanitia';
 
 export const LokasiKontak: React.FC = () => {
   const [openFaq, setOpenFaq] = useState<number | null>(0);
+  const { kontakList } = useKontakPanitia();
 
   const faqs = [
     {
       q: 'Bagaimana cara konfirmasi donasi setelah melakukan transfer ke BSI?',
-      a: 'Setelah melakukan transfer ke Rekening BSI 7257159102 a.n. Masjid Citra Sentul Raya, Anda dapat mengirimkan foto bukti transfer melalui WhatsApp kepada Pak Leo (+62 812-1920-0400). Anda juga dapat menggunakan tombol "Konfirmasi Wakaf" di website ini yang secara otomatis membuat pesan konfirmasi resmi.',
+      a: `Setelah melakukan transfer ke Rekening BSI 7257159102 a.n. Masjid Citra Sentul Raya, Anda dapat mengirimkan foto bukti transfer melalui WhatsApp kepada ${kontakList[0]?.nama || 'Panitia'} (${kontakList[0]?.noTelepon || ''}). Anda juga dapat menggunakan tombol "Konfirmasi Wakaf" di website ini yang secara otomatis membuat pesan konfirmasi resmi.`,
     },
     {
       q: 'Apakah bisa berwakaf atas nama orang tua atau keluarga yang sudah wafat?',
@@ -52,30 +54,30 @@ export const LokasiKontak: React.FC = () => {
 
         {/* Contact Cards Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {/* Pak Leo Card */}
-          <div className="bg-white p-6 rounded-3xl border border-slate-200 hover:border-lime-400 shadow-sm space-y-4">
-            <div className="w-12 h-12 rounded-2xl bg-lime-800 text-lime-300 flex items-center justify-center font-bold text-lg">
-              📱
+          {/* Dynamic Contact Cards */}
+          {kontakList.map((kontak: { nama: string; noTelepon: string; noWa: string }, idx: number) => (
+            <div key={idx} className="bg-white p-6 rounded-3xl border border-slate-200 hover:border-lime-400 shadow-sm space-y-4">
+              <div className="w-12 h-12 rounded-2xl bg-lime-800 text-lime-300 flex items-center justify-center font-bold text-lg">
+                📱
+              </div>
+              <div>
+                <span className="text-xs text-lime-700 font-extrabold uppercase block">
+                  Panitia Konfirmasi Donasi
+                </span>
+                <h3 className="text-xl font-bold text-slate-900">{kontak.nama}</h3>
+                <p className="text-xs text-slate-500 font-medium">{kontak.noTelepon}</p>
+              </div>
+              <a
+                href={`https://wa.me/${kontak.noWa}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full py-2.5 px-4 rounded-xl bg-lime-600 hover:bg-lime-700 text-white font-bold text-xs flex items-center justify-center gap-2 transition-colors"
+              >
+                <MessageSquare className="w-4 h-4 text-lime-300" />
+                <span>Chat WhatsApp {kontak.nama}</span>
+              </a>
             </div>
-            <div>
-              <span className="text-xs text-lime-700 font-extrabold uppercase block">
-                Panitia Konfirmasi Donasi
-              </span>
-              <h3 className="text-xl font-bold text-slate-900">Pak Leo</h3>
-              <p className="text-xs text-slate-500 font-medium">+62 812-1920-0400</p>
-            </div>
-            <a
-              href="https://wa.me/6281219200400"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="w-full py-2.5 px-4 rounded-xl bg-lime-600 hover:bg-lime-700 text-white font-bold text-xs flex items-center justify-center gap-2 transition-colors"
-            >
-              <MessageSquare className="w-4 h-4 text-lime-300" />
-              <span>Chat WhatsApp Pak Leo</span>
-            </a>
-          </div>
-
-
+          ))}
 
           {/* Sekretariat Card */}
           <div className="bg-white p-6 rounded-3xl border border-slate-200 hover:border-lime-400 shadow-sm space-y-4">

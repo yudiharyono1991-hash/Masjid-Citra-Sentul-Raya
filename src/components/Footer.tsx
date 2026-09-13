@@ -1,5 +1,6 @@
 import React from 'react';
 import { HeartHandshake, PhoneCall, Youtube, ShieldCheck, ArrowUp } from 'lucide-react';
+import { useKontakPanitia } from '../hooks/useKontakPanitia';
 
 interface FooterProps {
   onNavigate: (sectionId: string) => void;
@@ -7,6 +8,7 @@ interface FooterProps {
 }
 
 export const Footer: React.FC<FooterProps> = ({ onNavigate, onOpenWakafModal }) => {
+  const { kontakList } = useKontakPanitia();
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -79,18 +81,18 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onOpenWakafModal }) 
             </h4>
 
             <div className="space-y-2 text-xs text-lime-200">
-              <a
-                href="https://wa.me/6281219200400"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2 p-2 rounded-xl bg-lime-900 hover:bg-lime-800 transition-colors"
-              >
-                <PhoneCall className="w-4 h-4 text-lime-400 shrink-0" />
-                <span>Pak Leo: +62 812-1920-0400</span>
-              </a>
-
-
-
+              {kontakList.map((kontak: { nama: string; noTelepon: string; noWa: string }, idx: number) => (
+                <a
+                  key={idx}
+                  href={`https://wa.me/${kontak.noWa}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 p-2 rounded-xl bg-lime-900 hover:bg-lime-800 transition-colors"
+                >
+                  <PhoneCall className="w-4 h-4 text-lime-400 shrink-0" />
+                  <span>{kontak.nama}: {kontak.noTelepon}</span>
+                </a>
+              ))}
               <a
                 href="https://youtube.com/@ashabulyamintv?si=2BVXSTrBwoouBi_9"
                 target="_blank"

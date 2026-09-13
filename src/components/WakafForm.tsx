@@ -24,6 +24,7 @@ import jsPDF from 'jspdf';
 import { supabase } from '../lib/supabase';
 import { formatRupiah, buildWhatsAppLink, generateUniqueCode, toLocalDateString } from '../utils/formatters';
 import { Muwakif } from '../types';
+import { useKontakPanitia } from '../hooks/useKontakPanitia';
 
 interface WakafFormProps {
   onAddMuwakif: (newMuwakif: Muwakif) => void;
@@ -31,6 +32,9 @@ interface WakafFormProps {
 }
 
 export const WakafForm: React.FC<WakafFormProps> = ({ onAddMuwakif, onShowCertificate }) => {
+  const { kontakList } = useKontakPanitia();
+  const primaryContact = kontakList[0] || { nama: 'Panitia', noWa: '6281219200400' };
+
   const [paketList, setPaketList] = useState<any[]>([]);
   const [selectedPaket, setSelectedPaket] = useState<string>('');
   
@@ -660,7 +664,7 @@ export const WakafForm: React.FC<WakafFormProps> = ({ onAddMuwakif, onShowCertif
               {lastSubmittedMuwakif && (
                 <>
                   <a
-                    href={buildWhatsAppLink('081219200400', {
+                    href={buildWhatsAppLink(primaryContact.noWa, {
                       nama: lastSubmittedMuwakif.nama,
                       nominal: lastSubmittedMuwakif.nominal,
                       paket: lastSubmittedMuwakif.paket,
@@ -674,7 +678,7 @@ export const WakafForm: React.FC<WakafFormProps> = ({ onAddMuwakif, onShowCertif
                     className="w-full sm:w-auto px-6 py-3.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-sm shadow-md flex items-center justify-center gap-2 transition-transform hover:scale-105"
                   >
                     <Send className="w-4 h-4 text-lime-300" />
-                    <span>Kirim Bukti via WhatsApp Pak Leo</span>
+                    <span>Kirim Bukti via WhatsApp {primaryContact.nama}</span>
                   </a>
 
                   <button

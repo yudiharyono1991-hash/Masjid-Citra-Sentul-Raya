@@ -56,14 +56,14 @@ export const DaftarProgram: React.FC<DaftarProgramProps> = ({ programs, onDonate
         doc.text('QRIS - Masjid Citra Sentul Raya', 105, 20, { align: 'center' });
         doc.setFontSize(12);
         doc.text('NMID: ID1023304558381', 105, 30, { align: 'center' });
-        
+
         const imgObj = new Image();
         imgObj.src = '/images/qris-masjid.jpg';
         await new Promise((resolve, reject) => {
           imgObj.onload = resolve;
           imgObj.onerror = reject;
         });
-        
+
         doc.addImage(imgObj, 'JPEG', 55, 40, 100, 100);
         doc.setFontSize(10);
         doc.text('Terima kasih atas infak dan sedekah Anda. Jazakumullah Khairan.', 105, 150, { align: 'center' });
@@ -133,7 +133,7 @@ export const DaftarProgram: React.FC<DaftarProgramProps> = ({ programs, onDonate
                     }
                   })()}
                 </p>
-                
+
                 <div className="space-y-4">
                   <div>
                     <div className="flex justify-between text-xs font-semibold mb-1">
@@ -147,7 +147,7 @@ export const DaftarProgram: React.FC<DaftarProgramProps> = ({ programs, onDonate
                       ></div>
                     </div>
                   </div>
-                  
+
                   <div className="flex justify-between items-end pt-3 mt-4 border-t border-slate-100">
                     <div>
                       <p className="text-xs text-slate-500 mb-1">Terkumpul:</p>
@@ -164,7 +164,7 @@ export const DaftarProgram: React.FC<DaftarProgramProps> = ({ programs, onDonate
                       <span className="w-2 h-2 rounded-full bg-lime-500 animate-pulse"></span>
                       Verifikasi DKM
                     </div>
-                    <button 
+                    <button
                       onClick={() => {
                         setSelectedProgramId(prog.id);
                         setStep('form');
@@ -195,7 +195,7 @@ export const DaftarProgram: React.FC<DaftarProgramProps> = ({ programs, onDonate
             <button onClick={() => setSelectedProgramId(null)} className="absolute top-4 right-4 p-2 bg-slate-100 hover:bg-slate-200 rounded-full transition-colors cursor-pointer">
               <X className="w-5 h-5 text-slate-500" />
             </button>
-            
+
             <div className="p-6">
               <h2 className="text-xl font-bold text-slate-900 mb-1">
                 {step === 'form' ? 'Mulai Berdonasi' : 'Alhamdulillah'}
@@ -235,14 +235,14 @@ export const DaftarProgram: React.FC<DaftarProgramProps> = ({ programs, onDonate
                     </div>
                     <input type="text" placeholder="Nominal Lainnya..." value={nominal} onChange={(e) => setNominal(e.target.value.replace(/\D/g, ''))} className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-800 focus:outline-none focus:border-lime-600" />
                   </div>
-                  
+
                   <div>
                     <label className="block text-sm font-bold text-slate-700 mb-2">Metode Pembayaran</label>
                     <select value={metode} onChange={(e) => setMetode(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl text-slate-800 font-semibold focus:outline-none focus:border-lime-600 mb-3">
                       <option value="QRIS">Scan QRIS Instant (Semua Bank & E-Wallet)</option>
                       <option value="Bank Transfer (BSI)">Bank BSI (7257159102 a.n Masjid Citra Sentul Raya)</option>
                     </select>
-                    
+
                     {metode === 'QRIS' && (
                       <div className="bg-emerald-950 border border-emerald-700/60 rounded-2xl p-4 animate-in fade-in space-y-4">
                         <style>{`
@@ -283,7 +283,7 @@ export const DaftarProgram: React.FC<DaftarProgramProps> = ({ programs, onDonate
                                 className="w-full h-full object-contain rounded-lg block transition-transform duration-300 group-hover:scale-105 select-none"
                               />
                               <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-lime-400 to-transparent shadow-[0_0_6px_1.5px_#a3e635] scanner-laser-small pointer-events-none" />
-                              
+
                               <div className="absolute inset-0 bg-emerald-950/70 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex flex-col items-center justify-center gap-0.5">
                                 <ZoomIn className="w-4 h-4 text-lime-300" />
                                 <span className="text-[8px] text-lime-200 font-bold uppercase tracking-wider">ZOOM</span>
@@ -431,11 +431,11 @@ export const DaftarProgram: React.FC<DaftarProgramProps> = ({ programs, onDonate
                     <div className="border-2 border-dashed border-slate-300 rounded-xl p-4 text-center cursor-pointer hover:bg-slate-50 hover:border-lime-400 transition-colors" onClick={() => document.getElementById('bukti-upload')?.click()}>
                       <Upload className="w-6 h-6 text-slate-400 mx-auto mb-2" />
                       <p className="text-xs font-semibold text-slate-500">{buktiDonasi ? buktiDonasi.name : 'Klik untuk memilih file foto/screenshot'}</p>
-                      <input id="bukti-upload" type="file" accept="image/*" className="hidden" onChange={(e) => { if(e.target.files && e.target.files[0]) setBuktiDonasi(e.target.files[0]) }} />
+                      <input id="bukti-upload" type="file" accept="image/*" className="hidden" onChange={(e) => { if (e.target.files && e.target.files[0]) setBuktiDonasi(e.target.files[0]) }} />
                     </div>
                   </div>
 
-                  <button 
+                  <button
                     disabled={!nominal || !buktiDonasi || !kontakDonatur}
                     onClick={() => {
                       if (onDonate) {
@@ -457,34 +457,34 @@ export const DaftarProgram: React.FC<DaftarProgramProps> = ({ programs, onDonate
                   </p>
                   <div className="flex flex-col gap-3 mb-6">
                     <button type="button" onClick={() => {
-                       const doc = new jsPDF();
-                       doc.setFontSize(16);
-                       doc.text('Bukti Donasi Sementara', 105, 20, { align: 'center' });
-                       doc.setFont('helvetica', 'normal');
-                       doc.text(`Program: ${programs.find(p => p.id === selectedProgramId)?.judul}`, 20, 40);
-                       doc.text(`Nominal: Rp ${nominal}`, 20, 50);
-                       doc.text(`Nama Donatur: ${namaDonatur || 'Hamba Allah'}`, 20, 60);
-                       doc.text(`Status: Menunggu Verifikasi`, 20, 70);
-                       if (keterangan) {
-                         doc.text(`Keterangan: ${keterangan}`, 20, 80);
-                       }
-                       
-                       // TTD Section
-                       doc.text('Bogor, ' + new Date().toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' }), 130, 100);
-                       doc.setFont('helvetica', 'bold');
-                       doc.text('Ketua DKM Masjid Citra Sentul Raya', 130, 105);
-                       doc.text('_____________________________', 130, 125);
-                       
-                       doc.setFont('helvetica', 'italic');
-                       doc.setFontSize(10);
-                       doc.text('Bukti ini adalah struk sementara sebelum diverifikasi Admin.', 20, 140);
-                       doc.save(`Struk_Donasi_${namaDonatur || 'Hamba_Allah'}.pdf`);
+                      const doc = new jsPDF();
+                      doc.setFontSize(16);
+                      doc.text('Bukti Donasi Sementara', 105, 20, { align: 'center' });
+                      doc.setFont('helvetica', 'normal');
+                      doc.text(`Program: ${programs.find(p => p.id === selectedProgramId)?.judul}`, 20, 40);
+                      doc.text(`Nominal: Rp ${nominal}`, 20, 50);
+                      doc.text(`Nama Donatur: ${namaDonatur || 'Hamba Allah'}`, 20, 60);
+                      doc.text(`Status: Menunggu Verifikasi`, 20, 70);
+                      if (keterangan) {
+                        doc.text(`Keterangan: ${keterangan}`, 20, 80);
+                      }
+
+                      // TTD Section
+                      doc.text('Bogor, ' + new Date().toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' }), 130, 100);
+                      doc.setFont('helvetica', 'bold');
+                      doc.text('Ketua DKM Masjid Citra Sentul Raya', 130, 105);
+                      doc.text('_____________________________', 130, 125);
+
+                      doc.setFont('helvetica', 'italic');
+                      doc.setFontSize(10);
+                      doc.text('Bukti ini adalah struk sementara sebelum diverifikasi Admin.', 20, 140);
+                      doc.save(`Struk_Donasi_${namaDonatur || 'Hamba_Allah'}.pdf`);
                     }} className="w-full px-4 py-2.5 bg-emerald-100 hover:bg-emerald-200 text-emerald-700 font-bold rounded-xl transition-colors cursor-pointer flex items-center justify-center gap-2 text-sm border border-emerald-200">
                       <FileText className="w-4 h-4" /> Unduh Bukti Sementara (PDF)
                     </button>
                     <button type="button" onClick={() => {
-                       const msg = `Assalamu'alaikum Admin DKM,\n\nSaya ${namaDonatur || 'Hamba Allah'} telah berdonasi sebesar Rp ${new Intl.NumberFormat('id-ID').format(parseInt(nominal || '0'))} untuk program *${programs.find(p => p.id === selectedProgramId)?.judul}*.\n\nMohon verifikasinya, jazakumullah khairan.`;
-                       window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
+                      const msg = `Assalamu'alaikum Admin DKM,\n\nSaya ${namaDonatur || 'Hamba Allah'} telah berdonasi sebesar Rp ${new Intl.NumberFormat('id-ID').format(parseInt(nominal || '0'))} untuk program *${programs.find(p => p.id === selectedProgramId)?.judul}*.\n\nMohon verifikasinya, jazakumullah khairan.`;
+                      window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
                     }} className="w-full px-4 py-2.5 bg-[#25D366] hover:bg-[#128C7E] text-white font-bold rounded-xl transition-colors cursor-pointer flex items-center justify-center gap-2 text-sm shadow-md">
                       <Smartphone className="w-4 h-4" /> Kirim Info ke WhatsApp
                     </button>
@@ -528,9 +528,8 @@ export const DaftarProgram: React.FC<DaftarProgramProps> = ({ programs, onDonate
               <div className="mt-5 flex justify-center">
                 <div
                   onClick={() => setIsQrisZoomed(!isQrisZoomed)}
-                  className={`relative cursor-pointer group transition-all duration-300 ${
-                    isQrisZoomed ? 'scale-[1.18]' : ''
-                  }`}
+                  className={`relative cursor-pointer group transition-all duration-300 ${isQrisZoomed ? 'scale-[1.18]' : ''
+                    }`}
                   title="Klik untuk zoom"
                 >
                   <div className="absolute -inset-2 rounded-2xl bg-lime-400/30 blur-md group-hover:bg-lime-400/50 transition-all" />
@@ -571,7 +570,7 @@ export const DaftarProgram: React.FC<DaftarProgramProps> = ({ programs, onDonate
               <div>
                 <p className="text-xs text-center text-slate-400 uppercase tracking-wider font-semibold mb-2">Didukung oleh</p>
                 <div className="flex flex-wrap gap-1.5 justify-center">
-                  {['GoPay','OVO','Dana','ShopeePay','LinkAja','BCA','Mandiri','BRI','BSI','BNI'].map(w => (
+                  {['GoPay', 'OVO', 'Dana', 'ShopeePay', 'LinkAja', 'BCA', 'Mandiri', 'BRI', 'BSI', 'BNI'].map(w => (
                     <span key={w} className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md font-semibold border border-slate-200">{w}</span>
                   ))}
                 </div>
