@@ -1064,6 +1064,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     }
   };
 
+  const handleDeleteJournal = async (noBukti: string) => {
+    try {
+      await supabase.from('jurnal_umum').delete().eq('no_bukti', noBukti);
+      setJournals(prev => prev.filter(j => j.noBukti !== noBukti));
+    } catch (err) {
+      console.error('Error delete jurnal:', err);
+    }
+  };
+
   const [namaDonaturStr, setNamaDonaturStr] = useState('');
   const [kontakDonaturStr, setKontakDonaturStr] = useState('');
   const [selectedJamaahZiswaf, setSelectedJamaahZiswaf] = useState<string>('manual');
@@ -4485,7 +4494,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
               {/* Sub-Tab Module Display */}
               {lapkeuTab === 'neraca' && <ModulLaporanKeuangan journals={journals} accounts={accounts} onAddJournal={handleAutoPostJournal} />}
-              {lapkeuTab === 'jurnal' && <ModulJurnal entries={journals} accounts={accounts} onAddJournal={handleAutoPostJournal} />}
+              {lapkeuTab === 'jurnal' && <ModulJurnal entries={journals} accounts={accounts} onAddJournal={handleAutoPostJournal} onDeleteJournal={handleDeleteJournal} />}
               {lapkeuTab === 'bukubesar' && <ModulBukuBesar journals={journals} accounts={accounts} />}
               {lapkeuTab === 'coa' && <ModulCoA journals={journals} />}
               {lapkeuTab === 'anggaran' && <ModulAnggaranApproval onAutoPostJournal={handleAutoPostJournal} adminRole={adminRole} appSettings={appSettings} />}

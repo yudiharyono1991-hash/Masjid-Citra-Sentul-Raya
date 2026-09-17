@@ -17,12 +17,14 @@ interface ModulJurnalProps {
   entries?: JurnalEntry[];
   accounts?: AkunCoA[];
   onAddJournal?: (entry: JurnalEntry) => void;
+  onDeleteJournal?: (noBukti: string) => void;
 }
 
 export const ModulJurnal: React.FC<ModulJurnalProps> = ({ 
   entries = INITIAL_JURNAL_ENTRIES, 
   accounts = INITIAL_CHART_OF_ACCOUNTS,
-  onAddJournal 
+  onAddJournal,
+  onDeleteJournal
 }) => {
   const [journalList, setJournalList] = useState<JurnalEntry[]>(entries);
   const [tab, setTab] = useState<'list' | 'input'>('list');
@@ -213,6 +215,19 @@ export const ModulJurnal: React.FC<ModulJurnalProps> = ({
                   </div>
 
                   <div className="flex items-center gap-2">
+                    {onDeleteJournal && (
+                      <button
+                        onClick={() => {
+                          if(confirm(`Yakin ingin membatalkan/menghapus Jurnal dengan No Bukti ${jurnal.noBukti}? Data akan dihapus dari Laporan Keuangan.`)) {
+                            onDeleteJournal(jurnal.noBukti);
+                          }
+                        }}
+                        className="text-xs font-bold text-rose-600 hover:text-rose-800 bg-rose-50 px-3 py-1 rounded-xl hover:bg-rose-100 transition-colors border border-rose-100"
+                        title="Batalkan & Hapus Jurnal"
+                      >
+                        <Trash2 className="w-3.5 h-3.5 inline" /> Hapus
+                      </button>
+                    )}
                     <span className={`text-xs font-bold px-3 py-1 rounded-xl border ${SUMBER_COLOR[jurnal.sumber] || 'bg-slate-100 text-slate-600'}`}>
                       {jurnal.sumber}
                     </span>
