@@ -1000,7 +1000,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           // Generate kasEntries purely from jurnal_umum
           const kasListLegacy: any[] = [];
           journalsArray.forEach(j => {
-             const kasLine = j.baris.find(b => b.kodeAkun.startsWith('1-1'));
+             const kasLine = j.baris.find(b => b.kodeAkun.startsWith('110') || b.kodeAkun.startsWith('1-1'));
              if (kasLine) {
                 const dateFormatted = j.tanggal ? (j.tanggal.includes('/') ? j.tanggal : j.tanggal.split('-').reverse().join('/')) : '';
                 if (kasLine.debit > 0) {
@@ -1076,8 +1076,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     if (nominal && nominal > 0) {
       const progObj = programs.find(p => p.id === selectedProgram);
       const progTitle = progObj ? progObj.judul : 'Program ZISWAF';
-      const isZakat = progTitle.toLowerCase().includes('zakat');
-      const isWakaf = progTitle.toLowerCase().includes('wakaf');
+      const kat = progObj ? progObj.kategori.toLowerCase() : 'sodaqoh';
+      const isZakat = kat === 'zakat' || progTitle.toLowerCase().includes('zakat');
+      const isWakaf = kat === 'wakaf' || progTitle.toLowerCase().includes('wakaf');
+      const isInfaq = kat === 'infaq' || progTitle.toLowerCase().includes('infaq');
+      
+      let akunDebit = '1106'; // default Bank Infak & Sodaqoh
+      let akunKredit = '4103'; // default Sedekah Jamaah
+      
+      if (isZakat) { akunDebit = '1104'; akunKredit = '4106'; }
+      else if (isInfaq) { akunDebit = '1106'; akunKredit = '4102'; }
+      else if (isWakaf) { akunDebit = '1105'; akunKredit = '4104'; }
+
       const namaDonatur = namaDonaturStr.trim() || 'Hamba Allah';
       const noBukti = `BKM-DON-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
       const tanggal = ziswafTgl || toLocalDateString();
@@ -1091,8 +1101,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         keterangan: `Penerimaan Donasi ZISWAF: ${progTitle} dari ${namaDonatur}. ${keteranganZiswaf}`,
         sumber: 'Donasi Umum',
         baris: [
-          { kodeAkun: isZakat ? '1-10002' : (isWakaf ? '1-10002' : '1-10002'), namaAkun: `Bank (Debit)`, debit: nominal, kredit: 0 },
-          { kodeAkun: isZakat ? '4-20001' : (isWakaf ? '4-30001' : '4-10001'), namaAkun: `Pendapatan Donasi (Kredit)`, debit: 0, kredit: nominal },
+          { kodeAkun: akunDebit, namaAkun: `Bank (Debit)`, debit: nominal, kredit: 0 },
+          { kodeAkun: akunKredit, namaAkun: `Pendapatan Donasi (Kredit)`, debit: 0, kredit: nominal },
         ],
         status: 'Posted',
         dibuatOleh: 'Admin Masjid (Form ZISWAF)',
@@ -2152,7 +2162,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <div>
                       <label className="block text-sm font-bold text-slate-500 mb-2">Akun CoA Penerimaan (Debit: Kas/Bank)</label>
                       <select name="akun_debit" className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl text-slate-800 focus:outline-none focus:border-lime-600" required>
-                        {accounts.filter(a => a.jenis === 'Aset').map(a => <option key={a.kode} value={a.kode}>{a.kode} - {a.nama}</option>)}
+                        {accounts.filter(a => a.jenis === 'Aset' || a.jenis === 'Aktiva').map(a => <option key={a.kode} value={a.kode}>{a.kode} - {a.nama}</option>)}
                       </select>
                     </div>
                     <div>
@@ -2230,13 +2240,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <div>
                       <label className="block text-sm font-bold text-slate-500 mb-2">Akun CoA Pengeluaran (Debit: Beban/Aset)</label>
                       <select name="akun_debit" className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl text-slate-800 focus:outline-none focus:border-lime-600" required>
-                        {accounts.filter(a => a.jenis === 'Beban' || a.jenis === 'Aset').map(a => <option key={a.kode} value={a.kode}>{a.kode} - {a.nama}</option>)}
+                        {accounts.filter(a => a.jenis === 'Beban' || a.jenis === 'Aset' || a.jenis === 'Aktiva').map(a => <option key={a.kode} value={a.kode}>{a.kode} - {a.nama}</option>)}
                       </select>
                     </div>
                     <div>
                       <label className="block text-sm font-bold text-slate-500 mb-2">Akun CoA Sumber Kas (Kredit: Kas/Bank)</label>
                       <select name="akun_kredit" className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl text-slate-800 focus:outline-none focus:border-lime-600" required>
-                        {accounts.filter(a => a.jenis === 'Aset').map(a => <option key={a.kode} value={a.kode}>{a.kode} - {a.nama}</option>)}
+                        {accounts.filter(a => a.jenis === 'Aset' || a.jenis === 'Aktiva').map(a => <option key={a.kode} value={a.kode}>{a.kode} - {a.nama}</option>)}
                       </select>
                     </div>
                     <div>

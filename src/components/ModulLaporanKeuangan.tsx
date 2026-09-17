@@ -127,7 +127,7 @@ export const ModulLaporanKeuangan: React.FC<ModulLaporanKeuanganProps> = ({
         if (matchesFund) {
           j.baris.forEach(b => {
             if (b.kodeAkun === kode) {
-              if (akun.saldoNormal === 'Debit') {
+              if (akun.saldoNormal === 'Debit' || akun.is_debit === true) {
                 balance += (b.debit - b.kredit);
               } else {
                 balance += (b.kredit - b.debit);

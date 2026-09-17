@@ -412,16 +412,22 @@ export const ModulJurnal: React.FC<ModulJurnalProps> = ({
 
           {/* Validation Banner */}
           <div className={`p-4 rounded-2xl border text-xs font-bold flex items-center justify-between ${
-            isBalanced
-              ? 'bg-lime-50 border-lime-200 text-lime-800'
-              : 'bg-rose-50 border-rose-200 text-rose-800'
+            formTotalDebit === 0 && formTotalKredit === 0
+              ? 'bg-slate-50 border-slate-200 text-slate-500'
+              : isBalanced
+                ? 'bg-lime-50 border-lime-200 text-lime-800'
+                : 'bg-rose-50 border-rose-200 text-rose-800'
           }`}>
             <div className="flex items-center gap-2">
-              {isBalanced ? <CheckCircle className="w-4 h-4 text-lime-600" /> : <AlertCircle className="w-4 h-4 text-rose-600" />}
+              {formTotalDebit === 0 && formTotalKredit === 0 
+                ? <AlertCircle className="w-4 h-4 text-slate-400" />
+                : isBalanced ? <CheckCircle className="w-4 h-4 text-lime-600" /> : <AlertCircle className="w-4 h-4 text-rose-600" />}
               <span>
-                {isBalanced 
-                  ? '✅ Status: SEIMBANG (Debit = Kredit). Siap untuk di-posting ke Buku Besar & Laporan Keuangan!' 
-                  : '⚠️ Status: TIDAK SEIMBANG! Pastikan Total Debit SAMA dengan Total Kredit.'}
+                {formTotalDebit === 0 && formTotalKredit === 0
+                  ? 'ℹ️ Silakan masukkan nominal pada kolom Debit dan Kredit.'
+                  : isBalanced 
+                    ? '✅ Status: SEIMBANG (Debit = Kredit). Siap untuk di-posting ke Buku Besar & Laporan Keuangan!' 
+                    : '⚠️ Status: TIDAK SEIMBANG! Pastikan Total Debit SAMA dengan Total Kredit.'}
               </span>
             </div>
 

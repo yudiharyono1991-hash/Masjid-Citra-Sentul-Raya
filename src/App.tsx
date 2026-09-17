@@ -288,7 +288,19 @@ export default function App() {
           }
         }
 
-        const tanggalKini = toLocalDateString();
+        let tanggalKini = toLocalDateString();
+        if (donation.tanggal) {
+           const tglStr = donation.tanggal;
+           let tglObj;
+           if (tglStr.includes('-') && tglStr.split('-')[0].length === 4) {
+              tglObj = new Date(tglStr); // YYYY-MM-DD
+           } else {
+              tglObj = new Date(tglStr); // Let JS parse
+           }
+           if (!isNaN(tglObj.getTime())) {
+              tanggalKini = tglObj.toISOString().split('T')[0];
+           }
+        }
         const keterangan = `Penerimaan Donasi ${prog?.judul || 'ZISWAF'} a.n ${donation.namaDonatur || 'Hamba Allah'}`;
 
 
@@ -302,7 +314,7 @@ export default function App() {
             tanggal: tanggalKini,
             no_bukti: `BKM-DON-${Date.now()}`,
             keterangan: keterangan,
-            kode_akun: isZakat ? '1-10002' : (isWakaf ? '1-10002' : '1-10002'),
+            kode_akun: akunDebit,
             debit: donation.nominal,
             kredit: 0,
             user_input: 'Sistem ZISWAF'
@@ -312,7 +324,7 @@ export default function App() {
             tanggal: tanggalKini,
             no_bukti: `BKM-DON-${Date.now()}`,
             keterangan: keterangan,
-            kode_akun: isZakat ? '4-20001' : (isWakaf ? '4-30001' : '4-10001'),
+            kode_akun: akunKredit,
             debit: 0,
             kredit: donation.nominal,
             user_input: 'Sistem ZISWAF'
