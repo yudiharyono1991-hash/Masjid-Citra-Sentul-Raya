@@ -50,7 +50,7 @@ export const ModulJurnal: React.FC<ModulJurnalProps> = ({
   const [formTgl, setFormTgl] = useState(toLocalDateString());
   const [formNoBukti, setFormNoBukti] = useState(`JU-${new Date().getFullYear()}-00${journalList.length + 1}`);
   const [formKet, setFormKet] = useState('');
-  const [formSumber, setFormSumber] = useState<'Donasi Umum' | 'Donasi Portal Jamaah' | 'Kas Masjid' | 'Anggaran'>('Kas Masjid');
+  const [formSumber, setFormSumber] = useState<'Donasi Umum' | 'Donasi Portal Jamaah' | 'Kas Masjid' | 'Anggaran' | 'Modul Aset'>('Kas Masjid');
   const [formBaris, setFormBaris] = useState<JurnalBaris[]>([
     { kodeAkun: '1-1100', namaAkun: 'Kas Tunai Masjid', debit: 0, kredit: 0 },
     { kodeAkun: '4-1200', namaAkun: 'Pendapatan Infaq Kotak Amal', debit: 0, kredit: 0 },
@@ -247,11 +247,11 @@ export const ModulJurnal: React.FC<ModulJurnalProps> = ({
           {/* Source Filter */}
           <div className="flex items-center gap-2 overflow-x-auto pb-2">
             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider whitespace-nowrap ml-1">Sumber Dana:</span>
-              {['Semua', 'Donasi Umum', 'Donasi Portal Jamaah', 'Kas Masjid', 'Anggaran'].map(s => (
+              {['Semua', 'Donasi Umum', 'Donasi Portal Jamaah', 'Kas Masjid', 'Anggaran', 'Modul Aset'].map(s => (
                 <button
                   key={s}
                   onClick={() => setFilterSumber(s)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+                  className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold whitespace-nowrap transition-all border ${
                     filterSumber === s
                       ? 'bg-lime-700 text-white shadow-sm'
                       : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
@@ -439,7 +439,8 @@ export const ModulJurnal: React.FC<ModulJurnalProps> = ({
                 <option value="Kas Masjid">Kas Masjid</option>
                 <option value="Donasi Umum">Donasi Umum</option>
                 <option value="Donasi Portal Jamaah">Donasi Portal Jamaah</option>
-                <option value="Anggaran">Anggaran Operasional/Pembangunan</option>
+                <option value="Anggaran">Anggaran</option>
+                <option value="Modul Aset">Modul Aset</option>
               </select>
             </div>
           </div>
