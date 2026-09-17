@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { toLocalDateString } from '../utils/formatters';
 import { PlusCircle, FileText, CheckCircle, Clock, Search, AlertCircle, Trash2, ArrowRight } from 'lucide-react';
 import { INITIAL_CHART_OF_ACCOUNTS, INITIAL_JURNAL_ENTRIES, JurnalEntry, JurnalBaris, AkunCoA } from '../data/akuntansiData';
@@ -29,6 +29,11 @@ export const ModulJurnal: React.FC<ModulJurnalProps> = ({
   onEditJournal
 }) => {
   const [journalList, setJournalList] = useState<JurnalEntry[]>(entries);
+
+  useEffect(() => {
+    setJournalList(entries);
+  }, [entries]);
+
   const [tab, setTab] = useState<'list' | 'input'>('list');
   const [search, setSearch] = useState('');
   const [filterSumber, setFilterSumber] = useState('Semua');
