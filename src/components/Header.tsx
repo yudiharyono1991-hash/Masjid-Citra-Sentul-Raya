@@ -86,6 +86,22 @@ export const Header: React.FC<HeaderProps> = ({
     return () => window.removeEventListener('scroll', handleScrollEvent);
   }, [activeSection]);
 
+  useEffect(() => {
+    const titles: Record<string, string> = {
+      'home': 'Beranda | Masjid Citra Sentul Raya',
+      'kalender': 'Kalender Kegiatan | Masjid Citra Sentul Raya',
+      'ziswaf': 'Layanan ZISWAF | Masjid Citra Sentul Raya',
+      'transparansi': 'Transparansi Keuangan | Masjid Citra Sentul Raya',
+      'tentang': 'Tentang Kami | Masjid Citra Sentul Raya',
+      'kontak': 'Kontak | Masjid Citra Sentul Raya'
+    };
+    if (isPortalActive) {
+      document.title = 'Portal Admin | Masjid Citra Sentul Raya';
+    } else {
+      document.title = titles[activeSection] || 'Masjid Citra Sentul Raya';
+    }
+  }, [activeSection, isPortalActive]);
+
   const timeString = currentTime.toLocaleTimeString('id-ID', {
     hour: '2-digit',
     minute: '2-digit',

@@ -122,6 +122,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     const p = new URLSearchParams(window.location.search);
     return p.get('menu') || 'utama';
   });
+
+  useEffect(() => {
+    const titles: Record<string, string> = {
+      'utama': 'Dashboard Utama | Portal Admin',
+      'verifikasi': 'Verifikasi Donasi | Portal Admin',
+      'kas': 'Kas Masjid | Portal Admin',
+      'lapkeu': 'Laporan Keuangan | Portal Admin',
+      'jamaah': 'Database Jamaah | Portal Admin',
+      'konten': 'Manajemen Konten | Portal Admin',
+      'aset': 'Manajemen Aset | Portal Admin',
+      'surat': 'Surat Menyurat | Portal Admin',
+      'aspirasi': 'Aspirasi Jamaah | Portal Admin',
+      'pengaturan': 'Pengaturan Sistem | Portal Admin'
+    };
+    document.title = titles[activeMenu] || 'Portal Admin | Masjid Citra Sentul Raya';
+  }, [activeMenu]);
   const [activeCategory, setActiveCategory] = useState('utama');
   const [donasiPage, setDonasiPage] = useState(1);
   const [jamaahPage, setJamaahPage] = useState(1);
