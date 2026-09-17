@@ -1073,6 +1073,34 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     }
   };
 
+  const handleEditJournal = async (oldNoBukti: string, entry: JurnalEntry) => {
+    try {
+      // 1. Delete old rows
+      await supabase.from('jurnal_umum').delete().eq('no_bukti', oldNoBukti);
+      
+      // 2. Insert new rows
+      const inserts = entry.baris.map((b, idx) => ({
+        id: `${entry.id}-${idx}`,
+        tanggal: entry.tanggal,
+        no_bukti: entry.noBukti,
+        keterangan: entry.keterangan,
+        kode_akun: b.kodeAkun,
+        debit: b.debit,
+        kredit: b.kredit,
+        user_input: entry.dibuatOleh || 'Sistem'
+      }));
+      await supabase.from('jurnal_umum').insert(inserts);
+
+      // 3. Update local state
+      setJournals(prev => {
+        const filtered = prev.filter(j => j.noBukti !== oldNoBukti);
+        return [entry, ...filtered];
+      });
+    } catch (err) {
+      console.error('Error edit jurnal:', err);
+    }
+  };
+
   const [namaDonaturStr, setNamaDonaturStr] = useState('');
   const [kontakDonaturStr, setKontakDonaturStr] = useState('');
   const [selectedJamaahZiswaf, setSelectedJamaahZiswaf] = useState<string>('manual');
@@ -4494,7 +4522,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
               {/* Sub-Tab Module Display */}
               {lapkeuTab === 'neraca' && <ModulLaporanKeuangan journals={journals} accounts={accounts} onAddJournal={handleAutoPostJournal} />}
-              {lapkeuTab === 'jurnal' && <ModulJurnal entries={journals} accounts={accounts} onAddJournal={handleAutoPostJournal} onDeleteJournal={handleDeleteJournal} />}
+              {lapkeuTab === 'jurnal' && <ModulJurnal entries={journals} accounts={accounts} onAddJournal={handleAutoPostJournal} onDeleteJournal={handleDeleteJournal} onEditJournal={handleEditJournal} />}
               {lapkeuTab === 'bukubesar' && <ModulBukuBesar journals={journals} accounts={accounts} />}
               {lapkeuTab === 'coa' && <ModulCoA journals={journals} />}
               {lapkeuTab === 'anggaran' && <ModulAnggaranApproval onAutoPostJournal={handleAutoPostJournal} adminRole={adminRole} appSettings={appSettings} />}

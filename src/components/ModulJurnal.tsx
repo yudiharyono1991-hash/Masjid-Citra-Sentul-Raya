@@ -18,13 +18,15 @@ interface ModulJurnalProps {
   accounts?: AkunCoA[];
   onAddJournal?: (entry: JurnalEntry) => void;
   onDeleteJournal?: (noBukti: string) => void;
+  onEditJournal?: (oldNoBukti: string, newEntry: JurnalEntry) => void;
 }
 
 export const ModulJurnal: React.FC<ModulJurnalProps> = ({ 
   entries = INITIAL_JURNAL_ENTRIES, 
   accounts = INITIAL_CHART_OF_ACCOUNTS,
   onAddJournal,
-  onDeleteJournal
+  onDeleteJournal,
+  onEditJournal
 }) => {
   const [journalList, setJournalList] = useState<JurnalEntry[]>(entries);
   const [tab, setTab] = useState<'list' | 'input'>('list');
@@ -32,6 +34,7 @@ export const ModulJurnal: React.FC<ModulJurnalProps> = ({
   const [filterSumber, setFilterSumber] = useState('Semua');
 
   // Form Double Entry State
+  const [editModeNoBukti, setEditModeNoBukti] = useState<string | null>(null);
   const [formTgl, setFormTgl] = useState(toLocalDateString());
   const [formNoBukti, setFormNoBukti] = useState(`JU-${new Date().getFullYear()}-00${journalList.length + 1}`);
   const [formKet, setFormKet] = useState('');
@@ -77,6 +80,17 @@ export const ModulJurnal: React.FC<ModulJurnalProps> = ({
     setFormBaris(updated);
   };
 
+  const handleEditClick = (jurnal: JurnalEntry) => {
+    setEditModeNoBukti(jurnal.noBukti);
+    setFormTgl(jurnal.tanggal);
+    setFormNoBukti(jurnal.noBukti);
+    setFormKet(jurnal.keterangan);
+    setFormSumber(jurnal.sumber);
+    setFormBaris(jurnal.baris);
+    setTab('input');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const handleSubmitJurnal = (status: 'Draft' | 'Posted') => {
     if (!formKet) {
       alert('Mohon isi keterangan transaksi.');
@@ -100,8 +114,17 @@ export const ModulJurnal: React.FC<ModulJurnalProps> = ({
       tanggalBuat: toLocalDateString(),
     };
 
-    setJournalList([newEntry, ...journalList]);
-    if (onAddJournal) onAddJournal(newEntry);
+    if (editModeNoBukti && onEditJournal) {
+      onEditJournal(editModeNoBukti, newEntry);
+    } else if (onAddJournal) {
+      onAddJournal(newEntry);
+    } else {
+      setJournalList([newEntry, ...journalList]);
+    }
+
+    // Reset Form
+    setEditModeNoBukti(null);
+    setFormTgl(toLocalDateString());
 
     alert(`Berhasil menyimpan Jurnal Umum (${status === 'Posted' ? 'Ter-posted ke Buku Besar' : 'Draft'})!`);
     setTab('list');
@@ -215,6 +238,15 @@ export const ModulJurnal: React.FC<ModulJurnalProps> = ({
                   </div>
 
                   <div className="flex items-center gap-2">
+                    {onEditJournal && (
+                      <button
+                        onClick={() => handleEditClick(jurnal)}
+                        className="text-xs font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 px-3 py-1 rounded-xl hover:bg-indigo-100 transition-colors border border-indigo-100"
+                        title="Edit Jurnal"
+                      >
+                        Edit
+                      </button>
+                    )}
                     {onDeleteJournal && (
                       <button
                         onClick={() => {
