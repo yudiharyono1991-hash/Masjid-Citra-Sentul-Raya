@@ -32,6 +32,13 @@ export const ModulJurnal: React.FC<ModulJurnalProps> = ({
   const [tab, setTab] = useState<'list' | 'input'>('list');
   const [search, setSearch] = useState('');
   const [filterSumber, setFilterSumber] = useState('Semua');
+  const [filterStart, setFilterStart] = useState(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+  });
+  const [filterEnd, setFilterEnd] = useState(toLocalDateString());
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 10;
 
   // Form Double Entry State
   const [editModeNoBukti, setEditModeNoBukti] = useState<string | null>(null);
@@ -49,8 +56,12 @@ export const ModulJurnal: React.FC<ModulJurnalProps> = ({
   const filtered = allEntries.filter(j => {
     const matchSearch = j.keterangan.toLowerCase().includes(search.toLowerCase()) || j.noBukti.toLowerCase().includes(search.toLowerCase());
     const matchSumber = filterSumber === 'Semua' || j.sumber === filterSumber;
-    return matchSearch && matchSumber;
+    const matchDate = j.tanggal >= filterStart && j.tanggal <= filterEnd;
+    return matchSearch && matchSumber && matchDate;
   });
+
+  const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
+  const paginated = filtered.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
 
   const totalDebit = allEntries.reduce((s, j) => s + j.baris.reduce((b, r) => b + r.debit, 0), 0);
   const totalKredit = allEntries.reduce((s, j) => s + j.baris.reduce((b, r) => b + r.kredit, 0), 0);
@@ -128,10 +139,23 @@ export const ModulJurnal: React.FC<ModulJurnalProps> = ({
 
     alert(`Berhasil menyimpan Jurnal Umum (${status === 'Posted' ? 'Ter-posted ke Buku Besar' : 'Draft'})!`);
     setTab('list');
+    setCurrentPage(1); // Reset pagination on new entry
 
     // Reset Form
     setFormKet('');
     setFormNoBukti(`JU-${new Date().getFullYear()}-00${journalList.length + 2}`);
+  };
+
+  const handleCancelEdit = () => {
+    setEditModeNoBukti(null);
+    setFormTgl(toLocalDateString());
+    setFormNoBukti(`JU-${new Date().getFullYear()}-00${journalList.length + 1}`);
+    setFormKet('');
+    setFormBaris([
+      { kodeAkun: '1-1100', namaAkun: 'Kas Tunai Masjid', debit: 0, kredit: 0 },
+      { kodeAkun: '4-1200', namaAkun: 'Pendapatan Infaq Kotak Amal', debit: 0, kredit: 0 },
+    ]);
+    setTab('list');
   };
 
   return (
@@ -187,20 +211,37 @@ export const ModulJurnal: React.FC<ModulJurnalProps> = ({
 
       {tab === 'list' ? (
         <div className="space-y-4">
-          {/* Search & Source Filter */}
+          {/* Search & Date Filter */}
           <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row gap-3 items-center justify-between">
-            <div className="relative w-full sm:w-96">
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <input
+                type="date"
+                value={filterStart}
+                onChange={e => setFilterStart(e.target.value)}
+                className="w-32 px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm font-medium focus:outline-none focus:border-lime-500 transition-all"
+              />
+              <span className="text-slate-400 font-bold">-</span>
+              <input
+                type="date"
+                value={filterEnd}
+                onChange={e => setFilterEnd(e.target.value)}
+                className="w-32 px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm font-medium focus:outline-none focus:border-lime-500 transition-all"
+              />
+            </div>
+            <div className="relative w-full sm:w-80">
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
               <input
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                placeholder="Cari no bukti (BKM-2026-07-001) atau keterangan..."
+                placeholder="Cari no bukti atau keterangan..."
                 className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm font-medium focus:bg-white focus:outline-none focus:border-lime-500 focus:ring-2 focus:ring-lime-100 transition-all text-slate-800"
               />
             </div>
+          </div>
 
-            <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto">
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider whitespace-nowrap">Sumber Dana:</span>
+          {/* Source Filter */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-2">
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider whitespace-nowrap ml-1">Sumber Dana:</span>
               {['Semua', 'Donasi Umum', 'Donasi Portal Jamaah', 'Kas Masjid', 'Anggaran'].map(s => (
                 <button
                   key={s}
@@ -215,11 +256,10 @@ export const ModulJurnal: React.FC<ModulJurnalProps> = ({
                 </button>
               ))}
             </div>
-          </div>
 
           {/* Journal Entries List */}
           <div className="space-y-4">
-            {filtered.map(jurnal => (
+            {paginated.map(jurnal => (
               <div key={jurnal.id} className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs hover:shadow-md transition-shadow">
                 
                 {/* Journal Card Header */}
@@ -320,13 +360,36 @@ export const ModulJurnal: React.FC<ModulJurnalProps> = ({
             ))}
 
             {filtered.length === 0 && (
-              <div className="text-center py-16 bg-white rounded-2xl border border-slate-200">
-                <FileText className="w-10 h-10 text-slate-300 mx-auto mb-2" />
-                <p className="text-slate-600 font-bold text-sm">Entri jurnal tidak ditemukan</p>
-                <p className="text-xs text-slate-400 mt-1">Coba sesuaikan pencarian atau filter sumber dana.</p>
+              <div className="p-10 text-center text-slate-500 bg-white border border-slate-200 rounded-2xl">
+                <AlertCircle className="w-8 h-8 mx-auto text-slate-300 mb-3" />
+                <p className="font-bold text-sm">Tidak ada transaksi ditemukan</p>
+                <p className="text-xs mt-1">Coba sesuaikan tanggal atau kata kunci pencarian</p>
               </div>
             )}
           </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-2 mt-6">
+              <button 
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 disabled:opacity-50 hover:bg-slate-50 transition-colors"
+              >
+                Sebelumnya
+              </button>
+              <span className="text-xs font-bold text-slate-500 px-4">
+                Halaman {currentPage} dari {totalPages}
+              </span>
+              <button 
+                onClick={() => setCurrentPage(p => Math.max(1, Math.min(totalPages, p + 1)))}
+                disabled={currentPage === totalPages}
+                className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 disabled:opacity-50 hover:bg-slate-50 transition-colors"
+              >
+                Selanjutnya
+              </button>
+            </div>
+          )}
         </div>
       ) : (
         /* Form Double Entry Input */
@@ -488,13 +551,21 @@ export const ModulJurnal: React.FC<ModulJurnalProps> = ({
           </div>
 
           {/* Actions */}
-          <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+          <div className="pt-4 flex items-center justify-end gap-3 border-t border-slate-100">
+            {editModeNoBukti && (
+              <button
+                onClick={handleCancelEdit}
+                className="px-6 py-3 rounded-xl font-bold text-sm bg-slate-100 text-slate-600 hover:bg-slate-200 transition-all"
+              >
+                Batal Edit
+              </button>
+            )}
             <button
               type="button"
               onClick={() => handleSubmitJurnal('Draft')}
-              className="px-5 py-3 border border-slate-200 rounded-xl text-slate-700 font-bold text-xs sm:text-sm hover:bg-slate-100 transition-colors"
+              className="px-6 py-3 rounded-xl font-bold text-sm bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 transition-all shadow-sm"
             >
-              Simpan Draft
+              Simpan sebagai Draft
             </button>
             <button
               type="button"
