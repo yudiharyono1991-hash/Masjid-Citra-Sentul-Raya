@@ -301,7 +301,8 @@ export default function App() {
               tanggalKini = tglObj.toISOString().split('T')[0];
            }
         }
-        const keterangan = `Penerimaan Donasi ${prog?.judul || 'ZISWAF'} a.n ${donation.namaDonatur || 'Hamba Allah'}`;
+        const defaultKeterangan = `Penerimaan Donasi ${prog?.judul || 'ZISWAF'} a.n ${donation.namaDonatur || 'Hamba Allah'}`;
+        const keterangan = donation.keterangan ? donation.keterangan.trim() : defaultKeterangan;
 
 
         const isZakat = kat === 'zakat';
@@ -310,9 +311,9 @@ export default function App() {
         // 2. Insert ke Jurnal Umum (Double Entry)
         await supabase.from('jurnal_umum').insert([
           {
-            id: `JU-${Date.now()}-1`,
+            id: `JU-${donation.id}-1`,
             tanggal: tanggalKini,
-            no_bukti: `BKM-DON-${Date.now()}`,
+            no_bukti: `BKM-DON-${donation.id}`,
             keterangan: keterangan,
             kode_akun: akunDebit,
             debit: donation.nominal,
@@ -320,9 +321,9 @@ export default function App() {
             user_input: 'Sistem ZISWAF'
           },
           {
-            id: `JU-${Date.now()}-2`,
+            id: `JU-${donation.id}-2`,
             tanggal: tanggalKini,
-            no_bukti: `BKM-DON-${Date.now()}`,
+            no_bukti: `BKM-DON-${donation.id}`,
             keterangan: keterangan,
             kode_akun: akunKredit,
             debit: 0,
@@ -353,8 +354,22 @@ export default function App() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // 0. Fetch App Settings for Visibility Toggles
-        const { data: settingsData, error: settingsErr } = await supabase.from('app_settings').select('*').maybeSingle();
+        // Run all primary queries in parallel for maximum speed
+        const [
+          { data: settingsData, error: settingsErr },
+          { data: donasiData, error: donasiErr },
+          { data: programsData, error: progErr },
+          { data: jamaahData, error: jamaahErr },
+          { data: auditData, error: auditErr }
+        ] = await Promise.all([
+          supabase.from('app_settings').select('*').maybeSingle(),
+          supabase.from('donations').select('*').order('created_at', { ascending: false }),
+          supabase.from('programs').select('*').order('id'),
+          supabase.from('registered_jamaah').select('*').order('created_at', { ascending: false }),
+          supabase.from('audit_logs').select('*').order('created_at', { ascending: false })
+        ]);
+
+        // 0. Set App Settings for Visibility Toggles
         if (!settingsErr && settingsData) {
           setAppSettings(settingsData);
           setHomeVisibility({
@@ -369,8 +384,7 @@ export default function App() {
           });
         }
 
-        // 1. Fetch Donations First to calculate exact live balances
-        const { data: donasiData, error: donasiErr } = await supabase.from('donations').select('*').order('created_at', { ascending: false });
+        // 1. Process Donations
         let formattedDonasi: any[] = [];
         if (!donasiErr && donasiData) {
           formattedDonasi = donasiData.map((d: any) => ({
@@ -391,64 +405,61 @@ export default function App() {
           setDonasiHistory([]); // Clear if Supabase returns empty
         }
 
-        // 2. Fetch Programs and synchronize live totals
-        const { data: programsData, error: progErr } = await supabase.from('programs').select('*').order('id');
+        // 2. Process Programs
         if (!progErr && programsData) {
           if (programsData.length === 0) {
             // Database was reset — clear program state
             setPrograms([]);
           } else {
-          const formattedPrograms = programsData.map((p: any) => {
-            const programDonations = formattedDonasi.filter(d => d.programId === p.id && d.status === 'Berhasil');
-            const totalTerkumpul = programDonations.reduce((sum, d) => sum + d.nominal, 0);
-            const totalDonatur = programDonations.length;
-            const pTargetRp = Number(p.target_rp) || 0;
-            const pTerkumpulRp = Number(p.terkumpul_rp) || 0;
-            const pDonatur = Number(p.donatur) || 0;
-            
-            let percentage = 0;
-            if (pTargetRp > 0 && totalTerkumpul > 0) {
-              const rawPct = (totalTerkumpul / pTargetRp) * 100;
-              percentage = rawPct < 1 ? 1 : Math.min(100, Math.round(rawPct));
-            }
+            const formattedPrograms = programsData.map((p: any) => {
+              const programDonations = formattedDonasi.filter(d => d.programId === p.id && d.status === 'Berhasil');
+              const totalTerkumpul = programDonations.reduce((sum, d) => sum + d.nominal, 0);
+              const totalDonatur = programDonations.length;
+              const pTargetRp = Number(p.target_rp) || 0;
+              const pTerkumpulRp = Number(p.terkumpul_rp) || 0;
+              const pDonatur = Number(p.donatur) || 0;
+              
+              let percentage = 0;
+              if (pTargetRp > 0 && totalTerkumpul > 0) {
+                const rawPct = (totalTerkumpul / pTargetRp) * 100;
+                percentage = rawPct < 1 ? 1 : Math.min(100, Math.round(rawPct));
+              }
 
-            // Auto-heal database if out of sync
-            if (pTerkumpulRp !== totalTerkumpul || pDonatur !== totalDonatur) {
-               supabase.from('programs').update({
-                  terkumpul_rp: totalTerkumpul,
-                  terkumpul_persen: percentage,
-                  donatur: totalDonatur
-               }).eq('id', p.id).then();
-            }
+              // Auto-heal database if out of sync
+              if (pTerkumpulRp !== totalTerkumpul || pDonatur !== totalDonatur) {
+                 supabase.from('programs').update({
+                    terkumpul_rp: totalTerkumpul,
+                    terkumpul_persen: percentage,
+                    donatur: totalDonatur
+                 }).eq('id', p.id).then();
+              }
 
-            return {
-              id: p.id,
-              kategori: p.kategori,
-              judul: p.judul,
-              deskripsi: p.deskripsi,
-              terkumpulPersen: percentage,
-              terkumpulRp: totalTerkumpul,
-              targetRp: pTargetRp,
-              donatur: totalDonatur,
-              gambar: p.gambar
-            };
-          });
-          setPrograms(formattedPrograms);
+              return {
+                id: p.id,
+                kategori: p.kategori,
+                judul: p.judul,
+                deskripsi: p.deskripsi,
+                terkumpulPersen: percentage,
+                terkumpulRp: totalTerkumpul,
+                targetRp: pTargetRp,
+                donatur: totalDonatur,
+                gambar: p.gambar
+              };
+            });
+            setPrograms(formattedPrograms);
           }
         }
 
-        // Fetch Jamaah
-        const { data: jamaahData, error: jamaahErr } = await supabase.from('registered_jamaah').select('*').order('created_at', { ascending: false });
-        if (!jamaahErr && jamaahData && jamaahData.length > 0) {
+        // 3. Process Jamaah List
+        if (!jamaahErr && jamaahData) {
           const formattedJamaah = jamaahData.map((j: any) => ({
             n: j.nama, c: j.kontak, e: j.email || '', s: j.status, p: j.password
           }));
           setRegisteredJamaahList(formattedJamaah);
         }
 
-        // Fetch Audit Logs
-        const { data: auditData, error: auditErr } = await supabase.from('audit_logs').select('*').order('created_at', { ascending: false });
-        if (!auditErr && auditData && auditData.length > 0) {
+        // 4. Process Audit Logs
+        if (!auditErr && auditData) {
           const formattedAudit = auditData.map((a: any) => ({
             w: a.waktu, n: a.nama, r: a.peran, a: a.kontak, ac: a.aksi, d: a.deskripsi, c: a.warna_class
           }));
@@ -609,6 +620,7 @@ export default function App() {
                   const donasiToDelete = donasiHistory.find(d => d.id === id);
                   
                   await supabase.from('donations').delete().eq('id', id);
+                  await supabase.from('jurnal_umum').delete().eq('no_bukti', `BKM-DON-${id}`);
                   setDonasiHistory(prev => prev.filter(d => d.id !== id));
                   
                   // Jika donasi tersebut statusnya 'Berhasil', kurangi total dari program
